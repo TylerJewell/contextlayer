@@ -190,7 +190,7 @@ async def test_the_banner_recovers_when_the_service_comes_back():
     def handler(request: httpx.Request) -> httpx.Response:
         if not state["up"]:
             raise httpx.ConnectError("refused", request=request)
-        return httpx.Response(200, json={"items": [], "events": [], "controls": [], "digest": "sha256:x", "domains": [], "joins": []})
+        return httpx.Response(200, json={"items": [], "events": [], "controls": [], "digest": "sha256:x", "domains": [], "joins": [], "documents": []})
 
     app = app_for(client_for(handler))
     async with app.run_test(size=SIZE) as pilot:
