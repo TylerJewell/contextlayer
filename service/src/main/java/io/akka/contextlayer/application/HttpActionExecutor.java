@@ -31,7 +31,7 @@ import java.util.regex.Pattern;
  *       system may or may not have applied it. This throws, so the workflow records the outcome as
  *       unknown and a person decides. It is never retried here.
  * </ul>
- * Every attempt carries the same {@code Idempotency-Key}, so a system that honours it is safe even
+ * Every attempt carries the same {@code Idempotency-Key}, so a source that honours it is safe even
  * if a person later asks for the action again.
  */
 public class HttpActionExecutor implements ActionExecutor {

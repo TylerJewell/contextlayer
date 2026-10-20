@@ -27,8 +27,8 @@ public interface ActionExecutor {
   }
 
   /**
-   * Sends an action to the source system its pack names. {@code idempotencyKey} is the same on every
-   * attempt at this action, so a system that honours it applies the action once. An executor with no
+   * Sends an action to the source its pack names. {@code idempotencyKey} is the same on every
+   * attempt at this action, so a source that honours it applies the action once. An executor with no
    * way to reach a pack's system treats it as any other action.
    */
   default Result performPack(String orgId, PackCall call, String payload, String idempotencyKey) {

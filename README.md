@@ -1,6 +1,6 @@
 # Context Layer
 
-A governed context layer built on the Akka SDK. It answers questions across source systems, says how current each answer is, and keeps people in charge of identity, access and actions.
+A governed context layer built on the Akka SDK. It answers questions across sources, says how current each answer is, and keeps people in charge of identity, access and actions.
 
 | Folder | What it is |
 |---|---|

@@ -181,7 +181,7 @@ async def test_the_console_survives_an_unreachable_service_and_says_so_in_the_ba
         await pilot.pause(0.3)
         assert "cannot reach" in text_of(app.query_one("#banner", Static))
         assert app.reachable is False
-        assert app.query_one("#systems-pane").items == {}
+        assert app.query_one("#sources-pane").items == {}
 
 
 async def test_the_banner_recovers_when_the_service_comes_back():

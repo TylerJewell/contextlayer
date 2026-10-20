@@ -1,7 +1,7 @@
 # contextlayer-akka
 
 A governed context layer on the Akka SDK: staged assistants with approved releases, an
-idempotent action ledger with human approval, connector packs for source systems, a graph entity
+idempotent action ledger with human approval, connector packs for sources, a graph entity
 store, cross-source identity linking with a review queue, and structured questions that report how
 fresh each source was. Built from the requirements and design in
 `C:\Users\tyler\context\clean-room\implementer\`.
@@ -159,7 +159,7 @@ that moment and are not replayed, so a watcher that reconnects gets the whole an
 
 ## Relationships
 
-Records link in two ways. A **link by identity** finds records of different systems that are the same real-world party,
+Records link in two ways. A **link by identity** finds records of different sources that are the same real-world party,
 through links a person has confirmed. A **relationship** is one a source declares between its own record types: the entity
 in a connector pack lists `relations`, each a name, the field that holds the id (or a list of ids) of the records it points at,
 and the target type. For example a claim can declare `HAS_ACCOUNT` from its `accountId` field to `Account`.

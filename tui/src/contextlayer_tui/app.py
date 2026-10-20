@@ -21,10 +21,10 @@ from .panes.governance import GovernancePane
 from .panes.identity import IdentityPane
 from .panes.live import LivePane
 from .panes.monitors import MonitorsPane
-from .panes.systems import SystemsPane
+from .panes.sources import SourcesPane
 
 TABS: list[tuple[str, str, type]] = [
-    ("systems", "Systems", SystemsPane),
+    ("sources", "Sources", SourcesPane),
     ("identity", "Identity", IdentityPane),
     ("ask", "Ask", AskPane),
     ("cases", "Cases", CasesPane),
@@ -60,7 +60,7 @@ class ContextLayerApp(App):
 
     def compose(self) -> ComposeResult:
         yield Static(id="banner")
-        with TabbedContent(initial="systems", id="tabs"):
+        with TabbedContent(initial="sources", id="tabs"):
             for tab_id, label, pane_class in TABS:
                 with TabPane(label, id=tab_id):
                     yield pane_class(id=f"{tab_id}-pane")

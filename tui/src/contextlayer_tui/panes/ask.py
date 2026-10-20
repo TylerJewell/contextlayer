@@ -1,4 +1,4 @@
-"""Ask a question across the connected systems, and see how fresh each source was."""
+"""Ask a question across the connected sources, and see how fresh each source was."""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ class AskPane(Vertical):
     def compose(self) -> ComposeResult:
         with Horizontal(classes="ask-top"):
             with Vertical(classes="ask-form"):
-                yield Static("Ask across the connected systems. Join conditions with [bold]and[/]; "
+                yield Static("Ask across the connected sources. Join conditions with [bold]and[/]; "
                              "use = != > >= < <=. Separate links with ;", classes="hint")
                 yield from self._row("In words", "ask-words", "", "claims over 30 days for wealthy clients, then press Enter")
                 yield Static("", id="ask-explain", classes="hint")

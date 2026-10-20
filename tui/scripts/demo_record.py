@@ -107,7 +107,7 @@ def slide(title: str, lines: list[str], footer: str = "") -> str:
 
 
 def flow_slide() -> str:
-    boxes = [("Systems", "claims · wealth · CRM"), ("Identity", "a person confirms\nthe links"),
+    boxes = [("Sources", "claims · wealth · CRM"), ("Identity", "a person confirms\nthe links"),
              ("Monitors", "watch a question,\nopen cases"), ("Assistant", "a model labels\neach case"),
              ("Approval", "a person decides\nrisky actions"), ("Action", "sent once, to\nthe CRM"),
              ("Evidence", "every step\nis recorded")]
@@ -229,30 +229,30 @@ async def main() -> None:
             await pilot.pause(1.2)
 
         # ---- opening slides
-        film.beat("slide-problem", "Companies run on dozens of systems that disagree about who a customer is. "
-                  "AI assistants could help, but only if they can see across those systems, and only if a person stays in charge.")
+        film.beat("slide-problem", "Companies run on dozens of sources that disagree about who a customer is. "
+                  "AI assistants could help, but only if they can see across those sources, and only if a person stays in charge.")
         film.add(slide("A governed context layer",
-                       ["Ask across the systems you already run.", "Let AI assistants do the legwork.",
+                       ["Ask across the sources you already run.", "Let AI assistants do the legwork.",
                         "Keep a person in charge, and be able to prove it."], "Built on the Akka SDK"))
         film.beat("slide-how", "This is a governed context layer. It joins records through links a person has confirmed. "
                   "Monitors watch for problems, and an assistant judges each case with a model. Risky actions wait for human approval, "
                   "and every step leaves evidence. What you will see is live, with a real model.")
         film.add(flow_slide())
 
-        # ---- systems
-        film.beat("systems", "Three systems are connected. Claims and the wealth platform are read-only. "
+        # ---- sources
+        film.beat("sources", "Three sources are connected. Claims and the wealth platform are read-only. "
                   "The C R M is the only one an assistant can write to. Let's read the first two now.")
-        await shot("Systems: what is connected, and how each last read went")
-        app.action_goto("systems")
+        await shot("Sources: what is connected, and how each last read went")
+        app.action_goto("sources")
         await pilot.pause(0.5)
         await pilot.press("f")
         await pilot.pause(1.5)
         await pilot.press("down", "f")
         await pilot.pause(2.0)
-        await shot("Press f to read a system now")
+        await shot("Press f to read a source now")
 
         # ---- ask
-        film.beat("ask", "Now a question across systems: open claims over thirty days, whose client holds more than "
+        film.beat("ask", "Now a question across sources: open claims over thirty days, whose client holds more than "
                   "two hundred fifty thousand. Two rows come back. But the report warns that one more would match, "
                   "through a link still waiting for a person. It is left out, not guessed.")
         app.action_goto("ask")
@@ -389,7 +389,7 @@ async def main() -> None:
         await pilot.pause(0.8)
         await shot("What it does, what proves it, and who decides")
 
-    film.beat("closing", "Ask across systems. Let assistants act. Keep a person in charge, and prove it.")
+    film.beat("closing", "Ask across sources. Let assistants act. Keep a person in charge, and prove it.")
     film.add(slide("Ask. Act. Prove it.", ["Identity links a person confirms.", "Assistants judged by a real model, masked and checked.",
                                            "Risky actions held for approval, sent once.", "Every decision recorded with who, why, and how long."],
                    "Governed by design"))

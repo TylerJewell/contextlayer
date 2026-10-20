@@ -34,9 +34,9 @@ That makes an unsigned token. A deployed service refuses it.
 
 | Key | Tab | What it is for |
 |---|---|---|
-| 1 | Systems | Each connected system, its mode, and how its last read went. `f` reads it now. |
+| 1 | Sources | Each connected source, its mode, and how its last read went. `f` reads it now. |
 | 2 | Identity | Records that may be one person. `s` same person, `d` different people. |
-| 3 | Ask | Ask across systems. `ctrl+r` runs it, `F2` watches it as a monitor. The report beside the answer shows how fresh each source was. |
+| 3 | Ask | Ask across sources. `ctrl+r` runs it, `F2` watches it as a monitor. The report beside the answer shows how fresh each source was. |
 | 4 | Cases | What monitors found, the evidence, and the timeline. `r` resolve, `x` dismiss, `n` note. |
 | 5 | Approvals | Things waiting for a person. `a` opens one, and the next `a` decides it; `x` rejects, `e` escalates, `b` sends back, `r` releases. Deciding before the control's minimum review time asks first and is recorded as rushed. |
 | 6 | Assistants | Stage, releases, and what a shadow assistant would have done. `p` promote, `b` step back, `a` approve a release. |
@@ -62,7 +62,7 @@ understand, and it only ever joins records through confirmed identity.
 Start the service with local sources allowed and a development credential, then seed it:
 
     CONTEXTLAYER_ALLOWED_HOSTS=localhost CONTEXTLAYER_DEV_SECRET=demo-token NEO4J_PASSWORD=... (start the service)
-    uv run python scripts/live_demo.py        # leave running; it serves two pretend source systems
+    uv run python scripts/live_demo.py        # leave running; it serves two pretend sources
     uv run contextlayer-tui --org demo --user dan.m --roles operator,reviewer,approver
 
 Without `OPENAI_API_KEY` on the service, the assistant's model step fails and the case timeline says so.

@@ -23,7 +23,7 @@ import java.util.Optional;
 
 /**
  * Takes one requested action from the assistant's request to its outcome: decide by policy,
- * wait for a person when required, call the outside system once, record the result.
+ * wait for a person when required, call the source once, record the result.
  *
  * <p>The execute step never retries. If it fails in a way that leaves the outcome unknown (an
  * exception, a timeout), the run moves to the unknown-outcome step, which records that fact for

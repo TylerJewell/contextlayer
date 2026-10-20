@@ -29,7 +29,7 @@ import org.neo4j.driver.Driver;
 import org.neo4j.driver.GraphDatabase;
 
 /**
- * Shared set-up for the end-to-end tests: a real Neo4j, two mock source systems (claims and
+ * Shared set-up for the end-to-end tests: a real Neo4j, two mock sources (claims and
  * wealth), a recording action executor, and helpers for the HTTP API. Tests are skipped, with a
  * message, when no Neo4j is reachable (see Neo4jEntityStoreTest for the settings).
  *

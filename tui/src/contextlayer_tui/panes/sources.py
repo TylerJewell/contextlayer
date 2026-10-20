@@ -1,4 +1,4 @@
-"""Connected systems: each connector, how it is switched, and how its last read went."""
+"""Sources: each connector, how it is switched, and how its last read went."""
 
 from __future__ import annotations
 
@@ -20,9 +20,9 @@ _EXPLAIN_POLICY = {
 }
 
 
-class SystemsPane(Pane):
-    columns = ("", "System", "Version", "Mode", "Entities", "Last read")
-    empty_text = "No connectors yet. Import a connector pack to connect a system."
+class SourcesPane(Pane):
+    columns = ("", "Source", "Version", "Mode", "Entities", "Last read")
+    empty_text = "No connectors yet. Import a connector pack to connect a source."
     BINDINGS = [Binding("f", "refresh_entities", "Read now")]
 
     async def load(self) -> None:

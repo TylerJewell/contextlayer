@@ -31,7 +31,7 @@ import org.neo4j.driver.AuthTokens;
 import org.neo4j.driver.GraphDatabase;
 
 /**
- * The read path end to end: two mock source systems, real connector packs, the real entity store
+ * The read path end to end: two mock sources, real connector packs, the real entity store
  * (Neo4j), identity linking with review, freshness policies, and a source that goes down. Skipped
  * with a message when no Neo4j is reachable (see Neo4jEntityStoreTest for the settings).
  */

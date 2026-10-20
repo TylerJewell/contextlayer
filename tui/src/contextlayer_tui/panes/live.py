@@ -1,4 +1,4 @@
-"""Live: records as they change, pushed by the systems that own them."""
+"""Live: records as they change, pushed by the sources that own them."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ class LivePane(Pane):
     """Newest change first. The list is fed by the change feed, not by the refresh timer."""
 
     columns = ("Time", "Change", "Type", "Record", "From")
-    empty_text = "Waiting for a change. Records pushed by a connected system appear here as they arrive."
+    empty_text = "Waiting for a change. Records pushed by a connected source appear here as they arrive."
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)

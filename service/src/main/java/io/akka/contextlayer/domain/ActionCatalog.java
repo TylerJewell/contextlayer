@@ -7,7 +7,7 @@ import java.util.Optional;
  * The actions an assistant may ever request, with their risk class (REQUIREMENTS AST-04). An
  * action type that is not listed does not exist as far as assistants are concerned.
  *
- * <p>Connector packs will declare these per source system; this fixed catalog covers the
+ * <p>Connector packs will declare these per source; this fixed catalog covers the
  * built-in actions.
  */
 public final class ActionCatalog {

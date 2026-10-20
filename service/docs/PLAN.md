@@ -19,7 +19,7 @@ question shape.
   property on every node and a mandatory `orgId` parameter on every statement, enforced in one
   class and covered by cross-organization tests. Per-organization databases need Enterprise
   Edition; the licence decision is open (design O-1).
-- The store holds projections and links only. Source systems remain the system of record.
+- The store holds projections and links only. Sources remain the system of record.
 
 **Test approach:** tests that touch the store need a Neo4j server. They read its address from
 `NEO4J_URI` (default `bolt://localhost:7687`) and `NEO4J_PASSWORD`, and are skipped with a clear
@@ -48,7 +48,7 @@ totals cannot be asked. Those are the questions the product exists for.
 
 What this does and does not mean for the platform:
 - The graph is derived. The decisions (identity clusters, reviews, approvals, evidence) are
-  event-sourced and are the durable record; source systems stay the system of record for the data.
+  event-sourced and are the durable record; sources stay the system of record for the data.
   Losing the graph means rebuilding it, not losing information. What the platform has to provide is
   availability and a rebuild path, not a second source of truth.
 - Neo4j Community Edition is licensed GPLv3 and has no clustering, one database, and no online backup.

@@ -34,7 +34,7 @@ async def test_tab_labels_carry_the_counts_that_need_attention(demo_app):
 async def test_systems_lists_every_connector_and_marks_the_inactive_one(demo_app):
     async with demo_app.run_test(size=SIZE) as pilot:
         await pilot.pause()
-        table = demo_app.query_one("#systems-pane #table", DataTable)
+        table = demo_app.query_one("#sources-pane #table", DataTable)
         assert table.row_count == 4
-        detail = text_of(demo_app.query_one("#systems-pane #detail", Static))
+        detail = text_of(demo_app.query_one("#sources-pane #detail", Static))
         assert "claims" in detail and "What it provides" in detail

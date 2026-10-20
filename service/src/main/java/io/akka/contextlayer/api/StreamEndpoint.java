@@ -37,7 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
- * Where a system that is not an Akka service pushes changes to its records, such as a webhook from
+ * Where a source that is not an Akka service pushes changes to its records, such as a webhook from
  * a third party. The changes mean the same as the ones an Akka service publishes as a stream.
  */
 @Acl(allow = @Acl.Matcher(principal = Acl.Principal.INTERNET))

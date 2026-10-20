@@ -161,7 +161,7 @@ rows:
     applies_to: [deployer]
 
   - row_id: custom-cl0009
-    name: Calls to a source system go only to allowed hosts
+    name: Calls to a source go only to allowed hosts
     mechanism: gate
     lifecycle: preventative
     corpus_ref: eu-ai-act.art15.4

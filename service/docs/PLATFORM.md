@@ -60,7 +60,7 @@ read from the graph.
 - Decisions, evidence, cases, halts and notification routes are event sourced entities and key value
   entities in the service. The platform keeps them durable.
 - The entity graph is in Neo4j, because questions are composed at run time and followed across
-  records, which views cannot do (see `PLAN.md`). The graph can be rebuilt from the source systems.
+  records, which views cannot do (see `PLAN.md`). The graph can be rebuilt from the sources.
   Neo4j Community has one database, so a deployment's project is stored as `orgId` on every node and
   statement.
 

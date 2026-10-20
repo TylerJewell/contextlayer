@@ -97,28 +97,28 @@ async def main() -> None:
         film.add(slide("Trusted context for AI", ["Use your own information with AI,", "keep a person in charge,", "and keep the receipts."],
                        "A tour on sample data. No real customers appear."))
 
-        film.beat("problem", "Here is the problem. A customer's information lives in many systems, and those systems disagree about who "
+        film.beat("problem", "Here is the problem. A customer's information lives in many sources, and those sources disagree about who "
                   "the customer is. An assistant that guesses across them can make costly mistakes, and an auditor will later ask who "
                   "approved what, and how you know. This product answers three questions: what do we know, who decided, and can we prove it.")
         film.add(slide("Three questions an auditor asks", ["What do we know, and how current is it?", "Who decided, and on what authority?",
                                                            "Can you prove nothing was changed afterwards?"], "This product answers all three."))
 
-        film.beat("flow", "Here is how the pieces fit. Systems feed in records. A person confirms which records are the same customer. "
+        film.beat("flow", "Here is how the pieces fit. Sources feed in records. A person confirms which records are the same customer. "
                   "Watchers look for problems and open cases. An assistant can suggest an action, but a person approves anything risky. "
                   "And every step is written down. The green boxes are people. Nothing risky happens without one.")
         film.add(boxes_slide("How it fits together", [
-            ("Systems", "claims, wealth,\nthe CRM", False), ("People confirm", "which records are\nthe same customer", True),
+            ("Sources", "claims, wealth,\nthe CRM", False), ("People confirm", "which records are\nthe same customer", True),
             ("Watchers", "look for problems,\nopen cases", False), ("Assistant", "suggests an\naction", False),
             ("People approve", "anything risky", True), ("Receipts", "every step is\nwritten down", False)],
             ["Green boxes are people.", "Nothing risky happens without one."]))
 
-        # ---- systems
-        film.beat("systems", "Start with where the information lives. This screen lists every connected system and how its last read went. "
-                  "Claims and the wealth platform are read only. The customer relationship system is the only one an assistant may write to. "
-                  "Notice that one system failed its last read, and the screen says so. A failed system is never shown as empty, because "
+        # ---- sources
+        film.beat("sources", "Start with where the information lives. This screen lists every connected source and how its last read went. "
+                  "Claims and the wealth platform are read only. The CRM is the only one an assistant may write to. "
+                  "Notice that one source failed its last read, and the screen says so. A failed source is never shown as empty, because "
                   "an empty answer and an unknown answer mean very different things to a decision maker.")
-        app.action_goto("systems")
-        await shot("Systems: what is connected, and how each last read went", 1.0)
+        app.action_goto("sources")
+        await shot("Sources: what is connected, and how each last read went", 1.0)
 
         film.beat("freshness", "How current is the data? There are four ways it can arrive. It can be read when someone asks. "
                   "It can be remembered for a set time. It can be refreshed on a schedule. Or the source can push each change the moment "
@@ -128,15 +128,15 @@ async def main() -> None:
             ("On a schedule", "refreshed every\nfew minutes", False), ("Pushed", "the source tells us\nthe moment it changes", False)],
             ["Every answer says which one it used, and when.", "A source that goes quiet is reported as stale."]))
 
-        film.beat("live", "Here is the pushed kind. A claims system is sending changes as they happen. A claim is updated, another is "
+        film.beat("live", "Here is the pushed kind. The claims service is sending changes as they happen. A claim is updated, another is "
                   "removed, an account is changed, and each appears here within a second. There is no waiting for the nightly refresh. "
                   "A question left open on this data would update the same way, showing what was added to the answer and what dropped out.")
         app.action_goto("live")
         await pilot.pause(6.5)
-        await shot("Live: changes arrive from the systems as they happen")
+        await shot("Live: changes arrive from the sources as they happen")
 
         # ---- ask, identity
-        film.beat("ask", "Now a question across systems: which open claims are older than thirty days, where the client holds more than "
+        film.beat("ask", "Now a question across sources: which open claims are older than thirty days, where the client holds more than "
                   "two hundred and fifty thousand? Two rows come back. But look at the warning. One more claim would match, through a link "
                   "between records that a person has not yet confirmed. It is left out of the answer, and the answer says so. It is not guessed.")
         app.action_goto("ask")
@@ -182,10 +182,10 @@ async def main() -> None:
         await pilot.pause(1.0)
         await shot("In plain words: the system drafts the question. A person reads it and runs it")
 
-        film.beat("relationships", "Some links need no person at all. A claims system can say outright which account a claim is on. That is a relationship the "
+        film.beat("relationships", "Some links need no person at all. The claims service can say outright which account a claim is on. That is a relationship the "
                   "source declares, so a question can follow it by name, and it can follow it backwards, or through several steps. Ask for claims on accounts "
                   "holding more than two hundred and fifty thousand, and three come back, with no warning, because nobody had to guess. "
-                  "The difference is who vouches for the link: the source system, or a person who confirmed a match.")
+                  "The difference is who vouches for the link: the source, or a person who confirmed a match.")
         words.value = "open claims over a month on accounts holding over 250000"
         await pilot.pause(0.3)
         await pilot.press("enter")
@@ -290,10 +290,10 @@ async def main() -> None:
         await pilot.pause(1.2)
         await shot("The ledger check: intact, with a fingerprint to keep elsewhere", 0.5)
 
-    film.beat("closing", "To sum up. Your teams can ask questions across systems and see how current each answer is. Changes arrive as they happen. "
+    film.beat("closing", "To sum up. Your teams can ask questions across sources and see how current each answer is. Changes arrive as they happen. "
               "People decide who is who, who may see what, and what an assistant may do. And every step leaves a receipt you can check. "
               "That is how you let artificial intelligence use your information, with a person in charge.")
-    film.add(slide("What you get", ["Answers across systems, with how current they are.", "Links vouched for by a source, or by a person.",
+    film.add(slide("What you get", ["Answers across sources, with how current they are.", "Links vouched for by a source, or by a person.",
                                     "People decide identity, access and actions.", "Receipts you can check, and gaps shown honestly."],
                    "Built on the Akka platform"))
     film.save()

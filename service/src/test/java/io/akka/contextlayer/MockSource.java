@@ -8,7 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * A pretend source system for tests: an OpenAPI document and one list operation that answers with a
+ * A pretend source for tests: an OpenAPI document and one list operation that answers with a
  * body the test can change, or fails on demand. Requires the bearer token "tok".
  */
 public final class MockSource implements AutoCloseable {

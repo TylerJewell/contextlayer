@@ -7,12 +7,12 @@ behaviour here is one the tests exercise. `PLATFORM.md` says how it fits the Akk
 ## The shape
 
 One service per project, written with the Akka SDK. Callers reach it through HTTP routes under `/v1/context`. A person uses the
-terminal console or the command line, an agent uses the routes, and another Akka service or any other system pushes data in.
+terminal console or the command line, an agent uses the routes, and another Akka service or any other source pushes data in.
 
 ```
- source systems --read--> connectors --+
+ sources --------read--> connectors --+
  Akka services --stream--> consumer ---+--> entity graph (Neo4j) <--- questions, monitors, standing questions
- other systems --webhook--------------+          ^                          |
+ other sources --webhook--------------+          ^                          |
                                                  |                          v
  people ---- identity, approvals, domains ---> event sourced entities ---> evidence ledger (hash chained)
 ```

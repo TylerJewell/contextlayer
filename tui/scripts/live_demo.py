@@ -1,6 +1,6 @@
 """Put a small, believable organization into a running service, so the console has something real to show.
 
-It starts two pretend source systems on this machine (claims and wealth), then, through the service's
+It starts two pretend sources on this machine (claims and wealth), then, through the service's
 own API, connects them, creates an assistant with a playbook (in shadow), and starts a monitor.
 
 Start the service first, allowing local sources and giving it a development credential:

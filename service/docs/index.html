@@ -7,19 +7,19 @@
 
   Placeholders (single-value):
     Context Layer                    — value for <title> and <h1> (project name)
-    A governed context layer on the Akka SDK: it answers questions across source systems, says how current each answer is, and keeps people in charge of identity, access and actions.                     — one-line description under the h1
+    A governed context layer on the Akka SDK: it answers questions across sources, says how current each answer is, and keeps people in charge of identity, access and actions.                     — one-line description under the h1
     56          — total component count
     53              — total emitted-event count
     9           — total endpoint count
     10               — total view count
     55      — total domain-object count
     State and events of the 19 entities; the records they hold are listed by field              — sec-hint text for the entity diagram
-    A pushed change to a record, from the source system to the watchers; a webhook takes the same path through StreamEndpoint         — sec-hint text for the interaction diagram
+    A pushed change to a record, from the source to the watchers; a webhook takes the same path through StreamEndpoint         — sec-hint text for the interaction diagram
     Overview of the core path: connectors, evidence, claims and the change feed. The evidence chain is drawn in detail below     — sec-hint text for the component graph
     contextlayer                     — short kebab-case project slug, used to prefix
                                    every SVG title/desc id (see A11Y below)
     A pushed change reaches the store and the watchers        — <title> for the interaction diagram (<60 chars)
-    A claims system publishes a record change on its stream; the consumer writes it to the entity store, records the refresh status, and publishes a notice to the change feed.         — <desc>: one sentence on what it shows
+    The claims service publishes a record change on its stream; the consumer writes it to the entity store, records the refresh status, and publishes a notice to the change feed.         — <desc>: one sentence on what it shows
     Core components and how they connect    — <title> for the component graph (<60 chars)
     Three endpoints reach four entities and two views: connector packs feed their view, evidence feeds its view, and the stream endpoint reads the change feed.     — <desc>: one sentence on what it shows
     Akka SDK            — right-side footer text (typically "Akka SDK")
@@ -192,7 +192,7 @@ details[open]>summary .chev{transform:rotate(90deg);color:var(--yellow)}
 
 <div class="brand"><span class="brand-mark">AKKA</span><span class="brand-sub">Project Documentation</span></div>
 <h1>Context Layer</h1>
-<p class="lead">A governed context layer on the Akka SDK: it answers questions across source systems, says how current each answer is, and keeps people in charge of identity, access and actions.</p>
+<p class="lead">A governed context layer on the Akka SDK: it answers questions across sources, says how current each answer is, and keeps people in charge of identity, access and actions.</p>
 
 <div class="stats">
   <div class="stat"><div class="stat-num">56</div><div class="stat-label">Components</div></div>
@@ -518,13 +518,13 @@ details[open]>summary .chev{transform:rotate(90deg);color:var(--yellow)}
 </details>
 
 <details class="sec">
-  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#F5C518"></span><span class="sec-title">Interaction diagram</span><span class="sec-hint">A pushed change to a record, from the source system to the watchers; a webhook takes the same path through StreamEndpoint</span></summary>
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#F5C518"></span><span class="sec-title">Interaction diagram</span><span class="sec-hint">A pushed change to a record, from the source to the watchers; a webhook takes the same path through StreamEndpoint</span></summary>
   <div class="sec-body">
   <svg viewBox="0 0 980 320" width="100%" role="img"
        aria-labelledby="contextlayer-interaction-title contextlayer-interaction-desc"
        font-family="'SF Mono','Consolas',monospace">
     <title id="contextlayer-interaction-title">A pushed change reaches the store and the watchers</title>
-    <desc id="contextlayer-interaction-desc">A claims system publishes a record change on its stream; the consumer writes it to the entity store, records the refresh status, and publishes a notice to the change feed.</desc>
+    <desc id="contextlayer-interaction-desc">The claims service publishes a record change on its stream; the consumer writes it to the entity store, records the refresh status, and publishes a notice to the change feed.</desc>
         <g stroke="#2a2a2a"><line x1="108" y1="48" x2="108" y2="312"/><line x1="300" y1="48" x2="300" y2="312"/><line x1="492" y1="48" x2="492" y2="312"/><line x1="684" y1="48" x2="684" y2="312"/><line x1="876" y1="48" x2="876" y2="312"/></g>
     <g text-anchor="middle">
       <line x1="108" y1="96" x2="292" y2="96" stroke="#8a8a8a"/>
@@ -809,7 +809,7 @@ GET    /v1/context/assistants</div></div>
 <details class="sec">
   <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#fff"></span><span class="sec-title">StreamEndpoint</span><span class="sec-type">HTTP Endpoint</span><span class="sec-id mono">/v1/context/streams</span><span class="sec-hint">3 routes</span></summary>
   <div class="sec-body">
-    <p class="comp-desc">Where a system that is not an Akka service pushes changes to its records, such as a webhook from a third party. The changes mean the same as the ones an Akka service publishes as a stream.</p>
+    <p class="comp-desc">Where a source that is not an Akka service pushes changes to its records, such as a webhook from a third party. The changes mean the same as the ones an Akka service publishes as a stream.</p>
     <div class="code"><div class="code-bar mono">StreamEndpoint.java</div>
     <div class="code-body mono">POST   /v1/context/streams/changes
 GET    /v1/context/streams/changes
@@ -819,7 +819,7 @@ POST   /v1/context/streams/watch</div></div>
 <details class="sec">
   <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#F5C518"></span><span class="sec-title">ActionLedgerEntity</span><span class="sec-type">Event Sourced Entity</span><span class="sec-id mono">action-ledger</span><span class="sec-hint">The idempotent record of one action.</span></summary>
   <div class="sec-body">
-    <p class="comp-desc">The idempotent record of one action. The id is ScopedId.of(orgId, assistantId, actionKey), so repeating a request with the same key returns the existing entry and records nothing new. Entities never call external systems; ActionWorkflow does, and records the outcome here.</p>
+    <p class="comp-desc">The idempotent record of one action. The id is ScopedId.of(orgId, assistantId, actionKey), so repeating a request with the same key returns the existing entry and records nothing new. Entities never call sources; ActionWorkflow does, and records the outcome here.</p>
     <div class="code"><div class="code-bar mono">ActionLedgerEntity.java</div>
     <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"action-ledger"</span>)
 <span class="kw">public</span> <span class="kw">class</span> ActionLedgerEntity <span class="kw">extends</span> EventSourcedEntity&lt;ActionRecord, ActionEvent&gt; {
@@ -1394,7 +1394,7 @@ POST   /v1/context/streams/watch</div></div>
 <details class="sec">
   <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#7EC8E3"></span><span class="sec-title">ActionWorkflow</span><span class="sec-type">Workflow</span><span class="sec-id mono">action-run</span><span class="sec-hint">Takes one requested action from the assistant's request to its outcome: decide by...</span></summary>
   <div class="sec-body">
-    <p class="comp-desc">Takes one requested action from the assistant's request to its outcome: decide by policy, wait for a person when required, call the outside system once, record the result.</p>
+    <p class="comp-desc">Takes one requested action from the assistant's request to its outcome: decide by policy, wait for a person when required, call the source once, record the result.</p>
     <div class="code"><div class="code-bar mono">ActionWorkflow.java</div>
     <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"action-run"</span>)
 <span class="kw">public</span> <span class="kw">class</span> ActionWorkflow <span class="kw">extends</span> Workflow&lt;ActionWorkflow.Run&gt; {

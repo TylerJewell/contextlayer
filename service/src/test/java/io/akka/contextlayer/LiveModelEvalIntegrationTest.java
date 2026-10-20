@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Test;
  *
  * <p>Each case is a claim with the fields a playbook would show the model and the label a careful
  * person would give it under the rubric in the instruction. Cases with instructions hidden in the
- * data check that text from a source system is treated as data. Results are written to
+ * data check that text from a source is treated as data. Results are written to
  * {@code target/live-model-eval.json}.
  */
 public class LiveModelEvalIntegrationTest extends TestKitSupport {

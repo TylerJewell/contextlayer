@@ -446,7 +446,7 @@ async def test_approving_the_newest_release_marks_it_approved(demo_app):
         assert "not approved" not in detail(demo_app, "assistants")
 
 
-# ---- monitors and systems
+# ---- monitors and sources
 
 
 async def test_a_paused_monitor_does_not_run_when_asked_to(demo_app):
@@ -475,19 +475,19 @@ async def test_pausing_and_resuming_a_monitor(demo_app):
 async def test_reading_a_failing_connector_reports_the_failure(demo_app):
     async with demo_app.run_test(size=SIZE) as pilot:
         await pilot.pause()
-        demo_app.action_goto("systems")
+        demo_app.action_goto("sources")
         await pilot.pause()
         await pilot.press("down", "down")  # wealth fails in the demo
         await pilot.pause(0.3)
         await pilot.press("f")
         await pilot.pause(0.5)
-        assert "HTTP 500" in detail(demo_app, "systems")
+        assert "HTTP 500" in detail(demo_app, "sources")
 
 
 async def test_an_inactive_connector_says_there_is_nothing_to_read(demo_app):
     async with demo_app.run_test(size=SIZE) as pilot:
         await pilot.pause()
-        demo_app.action_goto("systems")
+        demo_app.action_goto("sources")
         await pilot.pause()
         await pilot.press("down", "down", "down")
         await pilot.pause(0.3)
@@ -499,7 +499,7 @@ async def test_an_inactive_connector_says_there_is_nothing_to_read(demo_app):
 async def test_number_keys_switch_tabs(demo_app):
     async with demo_app.run_test(size=SIZE) as pilot:
         await pilot.pause()
-        demo_app.query_one("#systems-pane #table", DataTable).focus()
+        demo_app.query_one("#sources-pane #table", DataTable).focus()
         await pilot.press("4")
         await pilot.pause()
         assert demo_app.query_one("#tabs", TabbedContent).active == "cases"
@@ -878,7 +878,7 @@ async def test_attaching_a_document_to_a_control_with_nothing_asserted_says_so(d
 async def test_g_opens_the_glossary_and_shows_a_plain_definition(demo_app):
     async with demo_app.run_test(size=SIZE) as pilot:
         await pilot.pause()
-        demo_app.query_one("#systems-pane #table", DataTable).focus()
+        demo_app.query_one("#sources-pane #table", DataTable).focus()
         await pilot.press("g")
         await pilot.pause()
         assert demo_app.query_one("#tabs", TabbedContent).active == "glossary"

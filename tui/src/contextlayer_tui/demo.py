@@ -50,7 +50,7 @@ _CONTROLS = [
     ("custom-cl0008", "Rushed human decisions are counted", "eval", "detective", "eu-ai-act.art14.5.rubber-stamp-rate",
      "A decision submitted before the control's minimum review time is flagged below-minimum.",
      "HumanDecisionRecorded", "STATE_TRANSITION", None),
-    ("custom-cl0009", "Calls to a source system go only to allowed hosts", "gate", "preventative", "eu-ai-act.art15.4",
+    ("custom-cl0009", "Calls to a source go only to allowed hosts", "gate", "preventative", "eu-ai-act.art15.4",
      "A source call to a host outside the egress allow list is refused before it is sent.",
      "ControlEvaluationRecorded", "BEFORE_TOOL_CALL", None),
     ("custom-cl0010", "Jailbreak-like text sent to a model is detected", "guardrail", "detective",

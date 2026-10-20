@@ -11,7 +11,7 @@ import io.akka.contextlayer.domain.RiskClass;
 /**
  * The idempotent record of one action. The id is {@code ScopedId.of(orgId, assistantId, actionKey)},
  * so repeating a request with the same key returns the existing entry and records nothing new.
- * Entities never call external systems; {@link ActionWorkflow} does, and records the outcome here.
+ * Entities never call sources; {@link ActionWorkflow} does, and records the outcome here.
  */
 @Component(id = "action-ledger")
 public class ActionLedgerEntity extends EventSourcedEntity<ActionRecord, ActionEvent> {
