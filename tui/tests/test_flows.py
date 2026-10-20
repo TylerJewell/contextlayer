@@ -892,3 +892,29 @@ def test_every_glossary_term_is_defined_once_in_full():
     names = [term for term, *_ in TERMS]
     assert len(names) == len(set(names))
     assert all(area and meaning and why for _, area, meaning, why in TERMS)
+
+
+# ---- the runtime's record
+
+
+async def test_m_on_a_case_shows_the_model_call_and_the_runtime_verdict_on_it(demo_app):
+    async with demo_app.run_test(size=SIZE) as pilot:
+        await pilot.pause()
+        demo_app.action_goto("cases")
+        await pilot.pause(0.3)
+        await pilot.press("m")
+        await pilot.pause(0.3)
+        shown = " ".join(text_of(s) for s in demo_app.screen.query(Static))
+        assert "classifier-agent" in shown and "Allowed labels: BLOCKED, MOVING" in shown
+        assert "custom-cl0002" in shown and "passed" in shown
+        await pilot.press("escape")
+        await pilot.pause()
+        assert demo_app.query_one("#tabs", TabbedContent).active == "cases"
+
+
+async def test_each_control_says_whether_the_signed_contract_holds_it(demo_app):
+    async with demo_app.run_test(size=SIZE) as pilot:
+        await pilot.pause()
+        demo_app.action_goto("governance")
+        await pilot.pause(0.3)
+        assert "In the signed contract (revision 1, signed off by the risk-team)" in detail(demo_app, "governance")

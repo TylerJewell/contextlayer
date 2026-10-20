@@ -163,6 +163,8 @@ A halt is one approver; a restart needs two. Reopen, flags and standing decision
 | `POST /governance/documents/{name}` | administer | `{kind, ref, asOf, content}`: registers a version; `kind` is `procedure`, `policy`, `test-report`, `mapping` or `other`; only the digest of `content` is kept |
 | `GET /governance/documents`, `GET /governance/documents/{name}` | read | the newest version of each, or every version of one |
 | `POST /governance/ask` | read | `{text}` answer: `{intent, controlId, periodDays, facts:[{text, refs}], limits, summary, summaryChecked, unsupported, clarification, supported}` |
+| `GET /governance/interactions/{interactionId}` | read | `{interactionId, agent, at, systemMessage, input, reply, inputTokens, outputTokens, failure, verdicts[{evaluator, controlId, outcome, passed, label, explanation, at}]}`: the runtime ledger's record of a model call named by a `ledger:` reference, and the runtime's verdicts on it; 404 for an interaction of another project |
+| `GET /governance/contract` | read | `{present, intact, problems, digest, revision, systemId, corpusVersion, createdAt, signOffRole, signedOffBy, changed, unsigned, notRunning}`: the signed control contract packaged with the service and how the running controls compare with it. The compliance report carries the same as `contract`, each control's `contract` (`SIGNED`, `CHANGED` or `UNSIGNED`), and `gaps.notAsSigned` |
 | `GET /governance/rte?limit=` | read | RDF Turtle (`text/turtle`) in the Runtime Evidence vocabulary; the most recent `limit` records, at most 5000 |
 | `GET /governance/record-stores` | read | `{stores:[{id, holds, scheme, note, records, head}]}` |
 

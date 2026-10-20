@@ -16,6 +16,8 @@ akka-context domains joins approve claims wealth --rationale "triage needs both"
 akka-context controls claims custom-cl0003   # who accepted it, who asserted what counts as its evidence
 akka-context controls assert custom-cl0003 --kind HumanDecisionRecorded --expect "override procedure:365" --rationale "..."
 akka-context integrity                         # is the evidence ledger unaltered, and what is its head
+akka-context interaction ledger:ID              # a model call from the runtime ledger, and the runtime's verdicts on it
+akka-context contract                          # the signed control contract, and any control run differently from it
 akka-context approvals list
 akka-context approvals claim ID
 akka-context approvals decide ID --approve --rationale "the payload is routine"

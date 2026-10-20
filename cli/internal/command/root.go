@@ -45,7 +45,7 @@ func New(in io.Reader, out, errOut io.Writer) *cobra.Command {
 	flags.StringVarP(&e.output, "output", "o", "text", "text, json or json-compact")
 	flags.BoolVar(&e.force, "force", false, "do not ask before a guarded command")
 	flags.DurationVar(&e.timeout, "timeout", 30*time.Second, "how long to wait for the service")
-	root.AddCommand(e.assistants(), e.approvals(), e.ask(), e.watch(), e.changes(), e.cases(), e.domains(), e.halts(), e.controls(), e.compliance(), e.integrity(), e.recordStores(), e.rte(), e.audit(), e.documents(), e.routes())
+	root.AddCommand(e.assistants(), e.approvals(), e.ask(), e.watch(), e.changes(), e.cases(), e.domains(), e.halts(), e.controls(), e.compliance(), e.integrity(), e.interaction(), e.contract(), e.recordStores(), e.rte(), e.audit(), e.documents(), e.routes())
 	return root
 }
 

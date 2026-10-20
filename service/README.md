@@ -85,12 +85,22 @@ under `/v1/context`.
   `GET .../governance/compliance` reports per control: satisfied, failing, unresolved, stale,
   no-evidence or waived (admin only, `POST .../controls/{id}/waiver`). Shadow, advisory and test
   records never count as proof.
-- Model calls from the classifier: personal data is masked in the service (and again by the runtime's
-  sanitizers), the answer must be an allowed label, a report-only jailbreak guardrail is configured,
-  and evidence links to the runtime's ledger interaction when the runtime reports one.
+- Model calls are governed by the Akka runtime, each piece declared in `application.conf` under the control it
+  implements (`control-id`):
+  - the predefined sanitizers mask email, phone, card, IBAN and IP values for every agent (`custom-cl0001`); the
+    classify step also masks and counts them itself, because the runtime records no sanitizer pass (see `docs/asks.md`);
+  - a report-only similarity guardrail looks for jailbreak text on every agent (`custom-cl0010`);
+  - `QuestionShapeGuardrail` refuses a call to the question model whose data block is more than the shape of the data
+    (`custom-cl0013`);
+  - `LabelAllowedEvaluator` and `ComplianceWordingEvaluator` judge every classifier and compliance-summary interaction
+    from the runtime's ledger and record the verdict under `custom-cl0002` and `custom-cl0016`. The service applies the
+    same checks before it acts on an answer; the evaluators are the runtime's own record of them.
+- Every model call's evidence and case-timeline entry carries `ledger:<interaction id>`, and
+  `GET /v1/context/governance/interactions/{id}` returns what the model was sent and said and the runtime's verdicts.
+- The control catalog is signed as a Governance Control Contract (see the root `README.md`). The compliance report says
+  for each control whether the service runs it exactly as signed.
 
-Not built: exit conditions (not wanted), signed bundles, ledger-over-HTTP evidence from the runtime,
-verdict records as objects of their own, flags on outputs.
+Not built: exit conditions (not wanted), ledger-over-HTTP evidence from the runtime, flags on outputs.
 
 ## Actions and notifications
 

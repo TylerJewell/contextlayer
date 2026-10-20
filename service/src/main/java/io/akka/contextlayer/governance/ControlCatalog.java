@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
@@ -34,7 +35,11 @@ public final class ControlCatalog {
   private final List<ControlDef> controls;
   private final String digest;
 
-  private ControlCatalog(String systemId, List<ControlDef> controls, String digest) {
+  /** Each row as written in the catalog, by row id: what a signed contract's row is compared with. */
+  private final Map<String, JsonNode> rows;
+
+  private ControlCatalog(String systemId, List<ControlDef> controls, String digest, Map<String, JsonNode> rows) {
+    this.rows = rows;
     this.systemId = systemId;
     this.controls = controls;
     this.digest = digest;
@@ -80,7 +85,8 @@ public final class ControlCatalog {
       canonicalRows.values().forEach(sorted::add);
       var canonical = YAML.createObjectNode();
       canonical.set("rows", sorted);
-      return new ControlCatalog(root.path("system_id").asText(""), List.copyOf(controls), CanonicalJson.sha256(canonical));
+      return new ControlCatalog(root.path("system_id").asText(""), List.copyOf(controls), CanonicalJson.sha256(canonical),
+          Map.copyOf(canonicalRows));
     } catch (IOException e) {
       throw new IllegalArgumentException("controls.yaml is not valid: " + e.getMessage(), e);
     }
@@ -137,5 +143,10 @@ public final class ControlCatalog {
 
   public String digest() {
     return digest;
+  }
+
+  /** The row as written in controls.yaml, or empty when the catalog has no such control. */
+  public Optional<JsonNode> row(String rowId) {
+    return Optional.ofNullable(rows.get(rowId));
   }
 }

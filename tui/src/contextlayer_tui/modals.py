@@ -1,11 +1,12 @@
-"""Small dialogs: a question that needs a typed answer, a yes/no, and the save-as-monitor form."""
+"""Small dialogs: a question that needs a typed answer, a yes/no, the save-as-monitor form, and a page to read."""
 
 from __future__ import annotations
 
+from rich.console import RenderableType
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, Static
 
@@ -131,4 +132,29 @@ class MonitorModal(ModalScreen[dict | None]):
 
     @on(Button.Pressed, "#cancel")
     def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class InfoModal(ModalScreen[None]):
+    """Shows something to read. Any of escape, enter or the button closes it."""
+
+    BINDINGS = [Binding("escape", "close", "Close"), Binding("enter", "close", "Close")]
+
+    def __init__(self, title: str, body: RenderableType) -> None:
+        super().__init__()
+        self._title, self._body = title, body
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="dialog wide"):
+            yield Static(self._title, classes="dialog-title")
+            with VerticalScroll(classes="dialog-body"):
+                yield Static(self._body)
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Close", variant="primary", id="close")
+
+    def on_mount(self) -> None:
+        self.query_one("#close", Button).focus()
+
+    @on(Button.Pressed, "#close")
+    def action_close(self) -> None:
         self.dismiss(None)

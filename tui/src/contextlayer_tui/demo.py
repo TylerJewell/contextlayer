@@ -219,7 +219,7 @@ class DemoApi:
         if with_playbook:
             timeline += [
                 {"at": opened_at + 4_000, "actor": "assistant claims-watch", "text": "started release 7f3a91c0 (SHADOW)"},
-                {"at": opened_at + 9_000, "actor": "assistant claims-watch", "text": "judged impact = BLOCKED (1 field(s) shown to the model)"},
+                {"at": opened_at + 9_000, "actor": "assistant claims-watch", "text": "judged impact = BLOCKED (1 field(s) shown to the model, ledger:demo-interaction-1)"},
                 {"at": opened_at + 9_500, "actor": "assistant claims-watch",
                  "text": "requested claims.attachDocument: AWAITING_APPROVAL (a person must approve this action)"},
             ]
@@ -729,6 +729,19 @@ class DemoApi:
         return {"scheme": "HashChained", "count": 42, "head": "sha256:" + "c0de" * 16, "from": 1, "checked": 42,
                 "intact": True, "problems": [], "next": None}
 
+    async def interaction(self, interaction_id: str) -> dict[str, Any]:
+        if interaction_id != "demo-interaction-1":
+            raise ApiError("not found", 404)
+        return {"interactionId": interaction_id, "agent": "classifier-agent", "at": "2026-10-20T09:00:09Z",
+                "systemMessage": "You label business records. Is the claim blocked by something only the customer can provide?\n\n"
+                                 "Allowed labels: BLOCKED, MOVING. Choose exactly one.",
+                "input": "notes: waiting on the customer's signed form; customer ******************* has not replied",
+                "reply": "{\"label\":\"BLOCKED\",\"reason\":\"The claim waits on a form only the customer can sign.\"}",
+                "inputTokens": 212, "outputTokens": 24, "failure": "",
+                "verdicts": [{"evaluator": "label-allowed-evaluator", "controlId": "custom-cl0002", "outcome": "VERDICT",
+                              "passed": True, "label": "label-allowed", "explanation": "answered BLOCKED, one of BLOCKED, MOVING",
+                              "at": "2026-10-20T09:00:10Z"}]}
+
     async def record_stores(self) -> list[dict[str, Any]]:
         return [{"id": "evidence-ledger", "holds": "Evidence that controls ran", "scheme": "HashChained",
                  "note": "Chained; check it at /governance/integrity.", "records": 42, "head": "sha256:" + "c0de" * 16},
@@ -767,16 +780,21 @@ class DemoApi:
                 "enforcing": upheld + breached, "upheld": upheld, "breached": breached, "flagged": flagged,
                 "lastEnforcingAt": _iso(now - 20 * _MINUTE) if upheld else None,
                 "acceptance": self._acceptance(row_id), "assertion": self._assertion(row_id),
-                "coverage": self._coverage(row_id)})
+                "coverage": self._coverage(row_id), "contract": "SIGNED"})
         gaps = {
             "unaccepted": [c["controlId"] for c in controls if not c["acceptance"]["accepted"]],
             "acceptedWithoutAssertion": [c["controlId"] for c in controls
                                          if c["acceptance"]["accepted"] and not c["assertion"]["asserted"]],
             "assertedWithoutEvidence": [c["controlId"] for c in controls if c["assertion"]["asserted"] and c["enforcing"] == 0],
             "coveragePartial": [c["controlId"] for c in controls
-                                if c["assertion"]["asserted"] and c["coverage"]["coverage"] != "FULL"]}
+                                if c["assertion"]["asserted"] and c["coverage"]["coverage"] != "FULL"],
+            "notAsSigned": []}
+        contract = {"present": True, "intact": True, "problems": [], "digest": "sha256:" + "5a9e" * 16, "revision": 1,
+                    "systemId": "contextlayer-akka", "corpusVersion": "2026-09", "createdAt": _iso(now - 3 * 24 * 60 * _MINUTE),
+                    "signOffRole": "risk-team", "signedOffBy": "CN=contextlayer-risk-team,OU=risk-team,O=contextlayer",
+                    "changed": [], "unsigned": [], "notRunning": []}
         return {"catalogDigest": "sha256:" + "ab12" * 16, "asOf": _iso(now), "freshnessDays": 7, "controls": controls,
-                "gaps": gaps}
+                "gaps": gaps, "contract": contract}
 
     def _assertion(self, control_id: str) -> dict[str, Any]:
         if control_id != "custom-cl0003":

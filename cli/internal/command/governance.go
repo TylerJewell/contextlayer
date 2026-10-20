@@ -170,6 +170,84 @@ func (e *env) integrity() *cobra.Command {
 	return command
 }
 
+func (e *env) interaction() *cobra.Command {
+	return &cobra.Command{
+		Use:   "interaction ID",
+		Short: "Show a model call from the runtime's ledger and the runtime's verdicts on it",
+		Long: "ID is what follows ledger: in an evidence record or a case timeline. Shows the instructions, what the\n" +
+			"model was shown, what it answered, and each verdict the runtime recorded under a control.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			id := strings.TrimPrefix(args[0], "ledger:")
+			result, err := e.run("GET", "/governance/interactions/"+url.PathEscape(id), nil)
+			if err != nil || e.emit(result) {
+				return err
+			}
+			fmt.Fprintf(e.out, "%s at %s, %s tokens in, %s out\n", field(result, "agent"), field(result, "at"),
+				field(result, "inputTokens"), field(result, "outputTokens"))
+			fmt.Fprintf(e.out, "\nInstructions:\n%s\n\nShown:\n%s\n\nAnswered:\n%s\n", field(result, "systemMessage"),
+				field(result, "input"), field(result, "reply"))
+			if failure := field(result, "failure"); failure != "" {
+				fmt.Fprintf(e.out, "\nFailed: %s\n", failure)
+			}
+			verdicts := items(result, "verdicts")
+			fmt.Fprintln(e.out, "\nRuntime verdicts:")
+			if len(verdicts) == 0 {
+				fmt.Fprintln(e.out, "  none recorded yet")
+			}
+			for _, v := range verdicts {
+				fmt.Fprintf(e.out, "  %s passed=%s %s: %s\n", field(v, "controlId"), field(v, "passed"), field(v, "evaluator"),
+					field(v, "explanation"))
+			}
+			return nil
+		},
+	}
+}
+
+func (e *env) contract() *cobra.Command {
+	return &cobra.Command{
+		Use:   "contract",
+		Short: "Show the signed control contract and whether the service runs exactly its controls",
+		Long: "The service checks that every part of the contract hashes as declared and compares each signed control\n" +
+			"with the one it runs. The signatures are verified with the contract tool: see contract/ in the repository.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			result, err := e.run("GET", "/governance/contract", nil)
+			if err != nil || e.emit(result) {
+				return err
+			}
+			if field(result, "present") != "true" {
+				fmt.Fprintln(e.out, "No signed control contract is packaged with the service.")
+				return fmt.Errorf("no signed contract")
+			}
+			if field(result, "intact") != "true" {
+				for _, problem := range items(result, "problems") {
+					fmt.Fprintf(e.out, "  problem: %v\n", problem)
+				}
+				return fmt.Errorf("the signed contract is damaged")
+			}
+			fmt.Fprintf(e.out, "%s revision %s, %s\n", field(result, "systemId"), field(result, "revision"), field(result, "digest"))
+			fmt.Fprintf(e.out, "corpus %s, signed off by the %s (%s) at %s\n", field(result, "corpusVersion"),
+				field(result, "signOffRole"), field(result, "signedOffBy"), field(result, "createdAt"))
+			drift := false
+			for _, part := range []struct{ key, says string }{
+				{"changed", "runs differently from how it was signed"},
+				{"unsigned", "runs but is not in the contract"},
+				{"notRunning", "is signed but not run"},
+			} {
+				for _, id := range items(result, part.key) {
+					drift = true
+					fmt.Fprintf(e.out, "  %v %s\n", id, part.says)
+				}
+			}
+			if !drift {
+				fmt.Fprintln(e.out, "The service runs exactly the signed controls.")
+			}
+			return nil
+		},
+	}
+}
+
 func (e *env) recordStores() *cobra.Command {
 	return &cobra.Command{
 		Use:   "record-stores",

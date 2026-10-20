@@ -46,10 +46,13 @@ class GovernancePane(Pane):
         self.ledger = ""  # what the last ledger check found, shown over every control until the next one
         self.answer = ""  # the last answer to a question about the controls, shown over every control until the next one
         self.documents: dict[str, dict[str, Any]] = {}
+        self.contract: dict[str, Any] = {}
 
     async def load(self) -> None:
         catalog = await self.api.controls()
-        standing = {c["controlId"]: c for c in (await self.api.compliance())["controls"]}
+        compliance = await self.api.compliance()
+        standing = {c["controlId"]: c for c in compliance["controls"]}
+        self.contract = compliance.get("contract") or {}
         self.digest = catalog["digest"]
         self.documents = {d["name"]: d for d in await self.api.documents()}
         rows = []
@@ -79,6 +82,7 @@ class GovernancePane(Pane):
             Text(),
             Text.from_markup(f"[{DIM}]{c['mechanism']} control · {c['lifecycle']} · acts at {c['boundary']}[/]"),
             Text.from_markup(f"[{DIM}]proved by {c['proofEvent']} · catalog {self.digest[:19]}…[/]"),
+            _contract_line(c.get("contract"), self.contract),
         ]
         if c.get("corpusRef"):
             lines.append(Text.from_markup(f"[{DIM}]answers {c['corpusRef']}[/]"))
@@ -228,3 +232,16 @@ class GovernancePane(Pane):
             return
         self.app.notify(done)
         await self.reload()
+
+
+def _contract_line(standing: str | None, contract: dict[str, Any]) -> Text:
+    """Whether the signed control contract holds this control as the service runs it."""
+    if not contract.get("present"):
+        return Text.from_markup(f"[{WARN}]No signed control contract is packaged with the service.[/]")
+    if not contract.get("intact"):
+        return Text.from_markup(f"[{BAD}]The signed control contract is damaged: {'; '.join(contract.get('problems', []))}[/]")
+    signed = f"revision {contract['revision']}, signed off by the {contract['signOffRole']}"
+    return {
+        "SIGNED": Text.from_markup(f"[{OK}]In the signed contract ({signed}), exactly as the service runs it.[/]"),
+        "CHANGED": Text.from_markup(f"[{WARN}]Signed ({signed}), but the service now runs a different definition.[/]"),
+    }.get(standing or "", Text.from_markup(f"[{WARN}]Not in the signed contract ({signed}).[/]"))

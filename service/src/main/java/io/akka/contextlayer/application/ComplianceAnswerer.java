@@ -65,29 +65,33 @@ public class ComplianceAnswerer {
 
     int days = ComplianceAnswer.period(choice.periodDays());
     var computed = facts.of(project, intent.get(), control.map(c -> c.rowId()).orElse(""), days, System.currentTimeMillis());
-    var worded = componentClient.forAgent().inSession(ScopedId.of(project, "ca", id + "-s"))
-        .method(ComplianceSummaryAgent::summarize)
+    var reply = componentClient.forAgent().inSession(ScopedId.of(project, "ca", id + "-s"))
+        .method(ComplianceSummaryAgent::summarize).withDetailedReply()
         .invoke(new ComplianceSummaryAgent.Request(question,
             computed.facts().stream().map(Fact::text).collect(Collectors.joining("\n")),
             String.join("\n", computed.limits())));
+    var worded = reply.value();
+    var interaction = reply.interactionId().map(i -> "ledger:" + i).orElse("");
 
     var check = worded == null || worded.isBlank() ? new ComplianceAnswer.Check(false, List.of("no answer was given"))
         : ComplianceAnswer.check(worded, computed);
     var summary = check.ok() ? worded.strip() : ComplianceAnswer.plain(computed);
     record(project, id, actor, intent.get().name() + (computed.controlId().isEmpty() ? "" : " " + computed.controlId()),
-        check.ok() ? "PASS" : "BLOCK", check.ok() ? "CONTINUED" : "FALLBACK_USED", check.ok() ? "answered" : "unsupported-claim");
+        check.ok() ? "PASS" : "BLOCK", check.ok() ? "CONTINUED" : "FALLBACK_USED", check.ok() ? "answered" : "unsupported-claim",
+        interaction);
     return new Response(intent.get().name(), computed.controlId(), days, computed.facts(), computed.limits(), summary, check.ok(),
         check.unsupported(), "", List.of());
   }
 
   private Response unplaced(String project, String id, String actor, String clarification) {
-    record(project, id, actor, "unplaced", "PASS", "CONTINUED", "needs-clarification");
+    record(project, id, actor, "unplaced", "PASS", "CONTINUED", "needs-clarification", "");
     return new Response("", "", 0, List.of(), List.of(), "", false, List.of(), clarification, supported());
   }
 
-  private void record(String project, String id, String actor, String subject, String decision, String consequence, String reason) {
+  private void record(String project, String id, String actor, String subject, String decision, String consequence, String reason,
+      String interaction) {
     new EvidenceRecorder(componentClient).record(new EvidenceRecorder.Fact(project, Controls.COMPLIANCE_ANSWER, id,
-        EvaluationMode.ENFORCING, decision, consequence, reason, subject, actor, "", "", false, "", 0));
+        EvaluationMode.ENFORCING, decision, consequence, reason, subject, actor, "", interaction, false, "", 0));
   }
 
   private String intents() {

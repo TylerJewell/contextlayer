@@ -68,3 +68,16 @@ should take the head (`/governance/integrity`) on a schedule, so a later check c
 platform ledger. This service keeps its own evidence log and compliance report until then. The control
 catalog already uses stable control ids so that the move changes where records are written and not
 what they say.
+
+## 8. Record each sanitizer pass in the runtime ledger
+
+**Needed.** A record per sanitizer pass, carrying its `control-id` and what kinds it masked, as evaluations and
+tool-call guardrail decisions already are.
+
+**Why.** Control `custom-cl0001` is enforced by the runtime's sanitizers on every agent, but a sanitizer leaves no
+record, so the runtime cannot show that it ran. `SanitizerClient` returns only the masked text, so a caller cannot
+record the counts either.
+
+**Until then.** Before the one model call whose input comes from records (the playbook's classify step), the service
+masks the same kinds itself with `PersonalDataMasker`, counts what it masked and records that as evidence; the
+runtime's sanitizers then mask again at the model boundary.

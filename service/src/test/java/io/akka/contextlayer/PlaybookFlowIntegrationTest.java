@@ -124,6 +124,31 @@ public class PlaybookFlowIntegrationTest extends LayerTestBase {
   }
 
   @Test
+  public void theTimelineLeadsToTheModelCallInTheRuntimeLedgerAndItsVerdict() {
+    modelAnswers("BLOCKED");
+    var org = newOrg();
+    var detail = caseFor(org, assistant(org, AssistantStage.SHADOW), "impact judged BLOCKED");
+
+    var judged = timeline(detail).stream().filter(t -> t.contains("judged impact = BLOCKED")).findFirst().orElseThrow();
+    var ref = java.util.regex.Pattern.compile("ledger:([\\w.-]+)").matcher(judged);
+    assertThat(ref.find()).as("the judgment names its ledger record: %s", judged).isTrue();
+
+    Awaitility.await().atMost(20, TimeUnit.SECONDS).untilAsserted(() -> {
+      var call = get("/orgs/" + org + "/governance/interactions/" + ref.group(1), GovernanceEndpoint.InteractionView.class);
+      assertThat(call.agent()).isEqualTo("classifier-agent");
+      assertThat(call.systemMessage()).contains("Allowed labels: BLOCKED, DEGRADED, MINOR");
+      assertThat(call.reply()).contains("BLOCKED");
+      assertThat(call.verdicts()).anySatisfy(v -> {
+        assertThat(v.controlId()).isEqualTo("custom-cl0002");
+        assertThat(v.passed()).isTrue();
+      });
+    });
+    var elsewhere = "/orgs/" + adopt("org-other-" + org) + "/governance/interactions/" + ref.group(1);
+    assertThat(wire().GET(elsewhere).addHeader("Authorization", Tokens.admin("reader", elsewhere)).invoke().status().intValue())
+        .as("another project cannot read this project's model call").isEqualTo(404);
+  }
+
+  @Test
   public void aLiveAssistantsRiskyActionWaitsForAPersonThenRunsAndTheCaseShowsIt() {
     modelAnswers("BLOCKED");
     var org = newOrg();

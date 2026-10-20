@@ -37,7 +37,7 @@ That makes an unsigned token. A deployed service refuses it.
 | 1 | Sources | Each connected source, its mode, and how its last read went. `f` reads it now. |
 | 2 | Identity | Records that may be one person. `s` same person, `d` different people. |
 | 3 | Ask | Ask across sources. `ctrl+r` runs it, `F2` watches it as a monitor. The report beside the answer shows how fresh each source was. |
-| 4 | Cases | What monitors found, the evidence, and the timeline. `r` resolve, `x` dismiss, `n` note. |
+| 4 | Cases | What monitors found, the evidence, and the timeline. `r` resolve, `x` dismiss, `n` note, `m` the model call behind it and the runtime's verdicts on it. |
 | 5 | Approvals | Things waiting for a person. `a` opens one, and the next `a` decides it; `x` rejects, `e` escalates, `b` sends back, `r` releases. Deciding before the control's minimum review time asks first and is recorded as rushed. |
 | 6 | Assistants | Stage, releases, and what a shadow assistant would have done. `p` promote, `b` step back, `a` approve a release. |
 | 7 | Monitors | Questions that run on a schedule. `n` run now, `e` pause or resume. |

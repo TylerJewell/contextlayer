@@ -392,3 +392,31 @@ func TestHaltNeedsAReason(t *testing.T) {
 		t.Fatalf("err=%v calls=%v", err, *calls)
 	}
 }
+
+func TestAModelCallIsReadFromTheLedgerReferenceAsWritten(t *testing.T) {
+	server, calls := serve(t, map[string]string{"GET /v1/context/governance/interactions/i-42": `{"agent":"classifier-agent",
+		"at":"t","inputTokens":10,"outputTokens":2,"systemMessage":"label it","input":"text","reply":"{\"label\":\"MAJOR\"}",
+		"failure":"","verdicts":[{"controlId":"custom-cl0002","passed":true,"evaluator":"label-allowed-evaluator",
+		"explanation":"answered MAJOR"}]}`})
+
+	out, _, err := execute(t, server, "interaction", "ledger:i-42")
+
+	if err != nil || len(*calls) != 1 {
+		t.Fatalf("got %v, calls %v", err, *calls)
+	}
+	if !strings.Contains(out, "custom-cl0002 passed=true label-allowed-evaluator: answered MAJOR") || !strings.Contains(out, "label it") {
+		t.Fatalf("got %q", out)
+	}
+}
+
+func TestTheContractSaysWhichControlsDriftedFromTheSignedOnes(t *testing.T) {
+	server, _ := serve(t, map[string]string{"GET /v1/context/governance/contract": `{"present":true,"intact":true,
+		"problems":[],"digest":"sha256:ab","revision":2,"systemId":"contextlayer-akka","corpusVersion":"2026-09",
+		"createdAt":"t","signOffRole":"risk-team","signedOffBy":"CN=r","changed":["custom-cl0008"],"unsigned":[],"notRunning":[]}`})
+
+	out, _, err := execute(t, server, "contract")
+
+	if err != nil || !strings.Contains(out, "custom-cl0008 runs differently from how it was signed") || !strings.Contains(out, "revision 2") {
+		t.Fatalf("got %q, %v", out, err)
+	}
+}

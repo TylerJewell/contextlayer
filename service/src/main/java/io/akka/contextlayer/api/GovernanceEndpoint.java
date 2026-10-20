@@ -7,7 +7,11 @@ import akka.javasdk.annotations.http.Get;
 import akka.javasdk.annotations.http.HttpEndpoint;
 import akka.javasdk.annotations.http.Post;
 import akka.javasdk.client.ComponentClient;
+import akka.javasdk.evaluation.Evaluation;
 import akka.javasdk.http.HttpException;
+import akka.javasdk.ledger.EvaluationRecord;
+import akka.javasdk.ledger.InteractionRecord;
+import akka.javasdk.ledger.LedgerClient;
 import io.akka.contextlayer.application.ChainLinkEntity;
 import io.akka.contextlayer.application.ComplianceAnswerer;
 import io.akka.contextlayer.application.ControlClaimsEntity;
@@ -26,6 +30,7 @@ import io.akka.contextlayer.auth.ProjectResolver;
 import io.akka.contextlayer.domain.ScopedId;
 import io.akka.contextlayer.governance.Compliance;
 import io.akka.contextlayer.governance.ControlCatalog;
+import io.akka.contextlayer.governance.SignedContract;
 import io.akka.contextlayer.governance.ControlClaims;
 import io.akka.contextlayer.governance.ControlDef;
 import io.akka.contextlayer.governance.EvaluationMode;
@@ -90,17 +95,31 @@ public class GovernanceEndpoint extends PrincipalEndpoint {
 
   public record CoverageView(String coverage, List<String> unmet) {}
 
+  /** @param contract SIGNED, CHANGED or UNSIGNED: whether the signed contract holds this control as the service runs it */
   public record ControlStanding(String controlId, String name, String mechanism, String status, String why,
       long enforcing, long upheld, long breached, long flagged, String lastEnforcingAt, AcceptanceView acceptance,
-      AssertionView assertion, CoverageView coverage) {}
+      AssertionView assertion, CoverageView coverage, String contract) {}
 
   /** Controls that fall between the claims, by id: the sets that only exist as differences. */
   public record Gaps(
       List<String> unaccepted, List<String> acceptedWithoutAssertion, List<String> assertedWithoutEvidence,
-      List<String> coveragePartial) {}
+      List<String> coveragePartial, List<String> notAsSigned) {}
+
+  /**
+   * The signed Governance Control Contract the service carries. The service checks that every part hashes as declared
+   * and compares each row with the control it runs; the signatures are verified by the contract tool.
+   *
+   * @param changed controls the service runs differently from how they were signed
+   * @param unsigned controls the service runs that the contract does not hold
+   * @param notRunning controls the contract holds that the service does not run
+   */
+  public record ContractView(boolean present, boolean intact, List<String> problems, String digest, long revision,
+      String systemId, String corpusVersion, String createdAt, String signOffRole, String signedOffBy,
+      List<String> changed, List<String> unsigned, List<String> notRunning) {}
 
   public record ComplianceReport(
-      String catalogDigest, String asOf, int freshnessDays, List<ControlStanding> controls, Gaps gaps) {}
+      String catalogDigest, String asOf, int freshnessDays, List<ControlStanding> controls, Gaps gaps,
+      ContractView contract) {}
 
   /**
    * What checking the evidence chain found, for the stretch that was asked for. {@code head} and {@code count}
@@ -147,11 +166,55 @@ public class GovernanceEndpoint extends PrincipalEndpoint {
 
   public record WaiverView(String controlId, boolean waived, String reason, String by, String until) {}
 
-  private final ComponentClient componentClient;
+  /** A verdict the runtime recorded on an interaction, under the control its evaluator implements. */
+  public record VerdictView(String evaluator, String controlId, String outcome, Boolean passed, String label,
+      String explanation, String at) {}
 
-  public GovernanceEndpoint(ComponentClient componentClient, Authz authz, ProjectResolver projects) {
+  /** What a model was sent and answered, as the runtime's ledger recorded it, and the verdicts on it. */
+  public record InteractionView(String interactionId, String agent, String at, String systemMessage, String input,
+      String reply, int inputTokens, int outputTokens, String failure, List<VerdictView> verdicts) {}
+
+  private final ComponentClient componentClient;
+  private final LedgerClient ledger;
+
+  public GovernanceEndpoint(ComponentClient componentClient, LedgerClient ledger, Authz authz, ProjectResolver projects) {
     super(authz, projects);
     this.componentClient = componentClient;
+    this.ledger = ledger;
+  }
+
+  /**
+   * The ledger record behind an evidence record's {@code ledger:} reference. Only an interaction of this project is
+   * returned: every agent session the service opens is named under the project.
+   */
+  @Get("/interactions/{interactionId}")
+  public InteractionView interaction(String interactionId) {
+    authorize(Permission.READ);
+    InteractionRecord record;
+    try {
+      record = ledger.getInteraction(interactionId);
+    } catch (java.util.NoSuchElementException e) {
+      throw HttpException.notFound();
+    }
+    if (!record.sessionId().startsWith(project() + ":")) throw HttpException.notFound();
+    var verdicts = ledger.getEvaluations(interactionId).stream().map(e -> new VerdictView(
+        e.evaluatorComponentId(), e.controlId().orElse(""),
+        switch (e.outcome()) {
+          case EvaluationRecord.Outcome.Verdict v -> "VERDICT";
+          case EvaluationRecord.Outcome.Inconclusive i -> "INCONCLUSIVE";
+          case EvaluationRecord.Outcome.Failed f -> "FAILED";
+        },
+        e.evaluation().map(Evaluation::passed).orElse(null),
+        e.evaluation().flatMap(Evaluation::label).orElse(""),
+        e.evaluation().map(Evaluation::explanation).orElseGet(() -> switch (e.outcome()) {
+          case EvaluationRecord.Outcome.Inconclusive i -> i.reason();
+          case EvaluationRecord.Outcome.Failed f -> f.reason();
+          default -> "";
+        }),
+        e.timestamp().toString())).toList();
+    return new InteractionView(record.interactionId(), record.agentComponentId(), record.timestamp().toString(),
+        record.systemMessage(), record.inputText(), record.finalResponseText(), record.totalInputTokens(),
+        record.totalOutputTokens(), record.failureSummary().orElse(""), verdicts);
   }
 
   @Get("/controls")
@@ -190,7 +253,29 @@ public class GovernanceEndpoint extends PrincipalEndpoint {
     var catalog = ControlCatalog.current();
     var standings = catalog.controls().stream().map(control -> standing(project(), control, now)).toList();
     return new ComplianceReport(catalog.digest(), Instant.ofEpochMilli(now).toString(), (int) FRESHNESS.toDays(), standings,
-        gaps(standings));
+        gaps(standings), contractView(catalog, SignedContract.current()));
+  }
+
+  /** The signed control contract, and how the controls the service runs compare with it. */
+  @Get("/contract")
+  public ContractView contract() {
+    authorize(Permission.READ);
+    return contractView(ControlCatalog.current(), SignedContract.current());
+  }
+
+  static ContractView contractView(ControlCatalog catalog, SignedContract signed) {
+    var changed = new java.util.ArrayList<String>();
+    var unsigned = new java.util.ArrayList<String>();
+    for (var control : catalog.controls()) {
+      switch (signed.standingOf(catalog, control.rowId())) {
+        case CHANGED -> changed.add(control.rowId());
+        case UNSIGNED -> unsigned.add(control.rowId());
+        case SIGNED -> { }
+      }
+    }
+    return new ContractView(signed.present(), signed.intact(), signed.problems(), signed.digest(), signed.revision(),
+        signed.systemId(), signed.corpusVersion(), signed.createdAt(), signed.signOffRole(), signed.signedOffBy(),
+        List.copyOf(changed), List.copyOf(unsigned), signed.notRunning(catalog));
   }
 
   /**
@@ -466,7 +551,8 @@ public class GovernanceEndpoint extends PrincipalEndpoint {
     return new ControlStanding(control.rowId(), control.name(), control.mechanism().name().toLowerCase(),
         s.status().name(), s.why(), s.enforcing(), s.upheld(), s.breached(), s.flagged(),
         s.lastEnforcingAt() == 0 ? null : Instant.ofEpochMilli(s.lastEnforcingAt()).toString(),
-        acceptanceView(claims), assertionView(claims.assertion()), coverageView(orgId, claims, now));
+        acceptanceView(claims), assertionView(claims.assertion()), coverageView(orgId, claims, now),
+        SignedContract.current().standingOf(ControlCatalog.current(), control.rowId()).name());
   }
 
   private ControlClaims readClaims(String orgId, String controlId) {
@@ -501,13 +587,16 @@ public class GovernanceEndpoint extends PrincipalEndpoint {
     var acceptedNoAssertion = new java.util.ArrayList<String>();
     var assertedNoEvidence = new java.util.ArrayList<String>();
     var partial = new java.util.ArrayList<String>();
+    var notAsSigned = new java.util.ArrayList<String>();
     for (var s : standings) {
+      if (!"SIGNED".equals(s.contract())) notAsSigned.add(s.controlId());
       if (!s.acceptance().accepted() || !s.acceptance().current()) unaccepted.add(s.controlId());
       if (s.acceptance().accepted() && !s.assertion().asserted()) acceptedNoAssertion.add(s.controlId());
       if (s.assertion().asserted() && s.enforcing() == 0) assertedNoEvidence.add(s.controlId());
       if (s.assertion().asserted() && !"FULL".equals(s.coverage().coverage())) partial.add(s.controlId());
     }
-    return new Gaps(List.copyOf(unaccepted), List.copyOf(acceptedNoAssertion), List.copyOf(assertedNoEvidence), List.copyOf(partial));
+    return new Gaps(List.copyOf(unaccepted), List.copyOf(acceptedNoAssertion), List.copyOf(assertedNoEvidence), List.copyOf(partial),
+        List.copyOf(notAsSigned));
   }
 
   /** Waiver bookkeeping is advisory evidence: it records who decided, and never counts as the control enforcing. */

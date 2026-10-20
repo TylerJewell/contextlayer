@@ -12,6 +12,10 @@ public class ComplianceSummaryAgent extends Agent {
 
   public record Request(String question, String facts, String limits) {}
 
+  /** The facts and what the records do not show are written between these two markers in the system message. */
+  static final String FACTS_START = "Facts:\n";
+  static final String FACTS_END = "\n\nRules:\n";
+
   public Effect<String> summarize(Request request) {
     return effects()
         .systemMessage("""

@@ -109,7 +109,12 @@ public final class ComplianceAnswer {
    * stops the failures that matter, an invented number, an invented control, and a verdict nobody recorded.
    */
   public static Check check(String text, Facts facts) {
-    var known = facts.allText().toLowerCase(Locale.ROOT);
+    return check(text, facts.allText());
+  }
+
+  /** As {@link #check(String, Facts)}, against the text of the facts and limits as the model was given them. */
+  public static Check check(String text, String factsText) {
+    var known = factsText.toLowerCase(Locale.ROOT);
     var unsupported = new ArrayList<String>();
     var lower = text.toLowerCase(Locale.ROOT);
     var ids = CONTROL_ID.matcher(text);

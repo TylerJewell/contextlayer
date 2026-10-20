@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * Turns a request in words into a structured question, without a model ever seeing a record.
@@ -50,7 +51,7 @@ public class QuestionDrafter {
     if (schema.isEmpty()) {
       return new Drafted(null, "", "", List.of(readable.isPresent()
           ? "no data you are granted has been read yet"
-          : "no data has been read yet; connect a system and read it first"));
+          : "no data has been read yet; connect a source and read it first"));
     }
     var shown = describe(schema);
     var id = UUID.randomUUID().toString();
@@ -112,6 +113,38 @@ public class QuestionDrafter {
       values.add(value);
     }
     return values;
+  }
+
+  private static final Pattern TYPE_LINE = Pattern.compile("\\S+ \\(\\d+ records\\)");
+  private static final Pattern FIELD_LINE = Pattern.compile("  [^\\s:][^:]*: (?:string|number|boolean)(?:, one of (.+))?");
+  private static final Pattern RELATION_LINE = Pattern.compile("  relationship \\S+ -> \\S+");
+
+  /**
+   * What in {@code shown} is not the shape of the data as {@link #describe} writes it: a line of another form, or a
+   * category list that a record's values could have leaked into. Empty when it is shape only.
+   */
+  static List<String> shapeProblems(String shown) {
+    var problems = new ArrayList<String>();
+    var lines = shown.lines().toList();
+    for (int i = 0; i < lines.size(); i++) {
+      var line = lines.get(i);
+      if (TYPE_LINE.matcher(line).matches() || RELATION_LINE.matcher(line).matches()) continue;
+      var field = FIELD_LINE.matcher(line);
+      if (!field.matches()) {
+        problems.add("line " + (i + 1) + " is not a type, a field or a relationship");
+        continue;
+      }
+      if (field.group(1) == null) continue;
+      var values = field.group(1).split(", ");
+      if (values.length > MAX_CATEGORIES) problems.add("line " + (i + 1) + " lists more than " + MAX_CATEGORIES + " categories");
+      for (var value : values) {
+        if (value.length() > MAX_CATEGORY_LENGTH || PersonalDataMasker.mask(value).total() > 0) {
+          problems.add("line " + (i + 1) + " lists a value that is not a category");
+          break;
+        }
+      }
+    }
+    return problems;
   }
 
   private static Drafted check(QuestionAgent.Draft draft, List<TypeSchema> schema) {

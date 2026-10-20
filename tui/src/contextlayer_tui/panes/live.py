@@ -8,6 +8,7 @@ from typing import Any
 from rich.console import Group, RenderableType
 from rich.text import Text
 from textual.app import ComposeResult
+from textual.css.query import NoMatches
 
 from ..api import ApiError
 from ..format import DIM, OK, WARN, clock
@@ -62,9 +63,13 @@ class LivePane(Pane):
         cells = (clock(change["at"]), f"[{colour}]{change['op']}[/]", change["entityType"], record, change["pack"])
         self.rows.insert(0, (key, change, cells))
         del self.rows[MAX_KEPT:]
-        self.fill(list(self.rows))
-        self.table.move_cursor(row=0)  # the newest, not wherever the cursor was
-        self.show_detail()
+        try:
+            self.fill(list(self.rows))
+            self.table.move_cursor(row=0)  # the newest, not wherever the cursor was
+            self.show_detail()
+        except NoMatches:
+            # The feed can deliver a change while the console is closing and the table is already gone.
+            return
 
     def describe(self, change: dict[str, Any]) -> RenderableType:
         what = {"upsert": "was written", "delete": "was removed", "refreshed": "was read whole on its schedule"}.get(change["op"], change["op"])

@@ -7,6 +7,8 @@
 # decision is recorded with its rationale and authority, but no review time exists to measure.
 schema_version: 1
 system_id: contextlayer-akka
+# The corpus every corpus_ref below is a control of. A signed contract pins it.
+corpus_version: "2026-09"
 rows:
   - row_id: custom-cl0001
     name: Personal data is masked before a model call
@@ -23,7 +25,9 @@ rows:
     mechanism: guardrail
     lifecycle: preventative
     corpus_ref: aws-agentic-scoping.scope2-human-approval
-    summary: A model's answer outside the labels the playbook step lists is refused and the step fails.
+    summary: >-
+      A model's answer outside the labels the playbook step lists is refused and the step fails. The runtime's
+      label-allowed-evaluator also judges every classifier interaction from its ledger and records the verdict.
     proof_event: GuardrailDecisionRecorded
     boundary: WORKFLOW_STEP
     applies_to: [deployer]
@@ -245,8 +249,9 @@ rows:
     corpus_ref: iso-27701.s7-4-5-minimisation-sanitizer
     summary: >-
       To turn a request in words into a question, the model is shown entity types, field names and
-      kinds, and the few values of fields that hold a handful of categories. Its draft is checked
-      against that schema, and a person reads and runs the question; the model never runs it.
+      kinds, and the few values of fields that hold a handful of categories. The runtime's question-shape
+      guardrail refuses any call whose data block is more than that shape. The draft is checked against the
+      schema, and a person reads and runs the question; the model never runs it.
     proof_event: GuardrailDecisionRecorded
     boundary: BEFORE_LLM_CALL
     applies_to: [deployer]
@@ -297,7 +302,7 @@ rows:
     summary: >-
       A model chooses which fixed question was asked, the facts are computed from recorded data, and a second model words them.
       Its words are checked against the facts, and an answer that adds a number, a control or a verdict they do not state is
-      replaced by the facts in plain form.
+      replaced by the facts in plain form. The runtime's compliance-wording-evaluator records the same check on every answer.
     proof_event: GuardrailDecisionRecorded
     boundary: AFTER_LLM_CALL
     applies_to: [deployer]

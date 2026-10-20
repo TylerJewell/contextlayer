@@ -95,6 +95,8 @@ public class AuthIntegrationTest extends LayerTestBase {
     }
     ROUTES.put("GET " + base + "/governance/integrity", Permission.READ);
     ROUTES.put("GET " + base + "/governance/rte", Permission.READ);
+    ROUTES.put("GET " + base + "/governance/interactions/{interactionId}", Permission.READ);
+    ROUTES.put("GET " + base + "/governance/contract", Permission.READ);
     ROUTES.put("GET " + base + "/governance/documents", Permission.READ);
     ROUTES.put("GET " + base + "/governance/documents/{name}", Permission.READ);
     ROUTES.put("POST " + base + "/governance/documents/{name}", Permission.ADMINISTER);

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import partial
+import re
 from typing import Any
 
 from rich.console import Group, RenderableType
@@ -15,7 +16,7 @@ from textual.widgets import Select
 
 from ..api import ApiError
 from ..format import DIM, INFO, ago, badge, cell, clock, dot
-from ..modals import PromptModal
+from ..modals import InfoModal, PromptModal
 from .base import Pane
 
 FILTERS = [("Open", "OPEN"), ("No longer matching", "NO_LONGER_MATCHING"), ("Resolved", "RESOLVED"),
@@ -26,7 +27,7 @@ class CasesPane(Pane):
     columns = ("", "Row", "Monitor", "Routed to", "Opened", "State")
     empty_text = "No cases in this view."
     BINDINGS = [Binding("r", "close('resolve')", "Resolve"), Binding("x", "close('dismiss')", "Dismiss"),
-                Binding("n", "annotate", "Add note")]
+                Binding("n", "annotate", "Add note"), Binding("m", "model_call", "Model call")]
 
     def above_list(self) -> ComposeResult:
         yield Select(FILTERS, value="OPEN", allow_blank=False, id="filter")
@@ -87,7 +88,7 @@ class CasesPane(Pane):
             timeline.append(f"\n    {item['text']}\n")
         closed = case["status"] in ("RESOLVED", "DISMISSED")
         hint = Text.from_markup(f"[{DIM}]This case is closed.[/]" if closed
-                                else "[bold]r[/] resolve   [bold]x[/] dismiss   [bold]n[/] add a note")
+                                else "[bold]r[/] resolve   [bold]x[/] dismiss   [bold]n[/] add a note   [bold]m[/] the model call")
         return Group(head, sub, Text(), evidence, Text("Sources read", style=DIM), notes, Text(), timeline, Text(), hint)
 
     # ---- actions
@@ -134,3 +135,46 @@ class CasesPane(Pane):
             self.fail(error)
             return
         self.show_detail()
+
+    async def action_model_call(self) -> None:
+        case = self.selected
+        if case is None:
+            return
+        self.run_worker(self._model_call(case["caseId"]))
+
+    async def _model_call(self, case_id: str) -> None:
+        try:
+            case = await self.api.case(case_id)
+            refs = [m.group(1) for item in case["timeline"] for m in _LEDGER_REF.finditer(item["text"])]
+            if not refs:
+                self.app.notify("No model was called for this case.", timeout=4)
+                return
+            interaction = await self.api.interaction(refs[-1])
+        except ApiError as error:
+            self.fail(error)
+            return
+        self.app.push_screen(InfoModal(f"Model call {interaction['interactionId']}", describe_interaction(interaction)))
+
+
+_LEDGER_REF = re.compile(r"ledger:([\w.-]+)")
+
+
+def describe_interaction(i: dict[str, Any]) -> RenderableType:
+    """What the model was sent and said, from the runtime's ledger, and the runtime's verdicts on it."""
+    parts: list[RenderableType] = [
+        Text.from_markup(f"[bold]{i['agent']}[/]   [{DIM}]{i['at']} · {i['inputTokens']} tokens in, {i['outputTokens']} out[/]"),
+        Text(),
+        Text("Instructions", style="italic"), Text(i["systemMessage"]), Text(),
+        Text("What it was shown (personal data masked)", style="italic"), Text(i["input"]), Text(),
+        Text("What it answered", style="italic"), Text(i["reply"] or "(nothing)"),
+    ]
+    if i.get("failure"):
+        parts += [Text(), Text.from_markup(f"[red]Failed: {i['failure']}[/]")]
+    parts += [Text(), Text("Runtime verdicts", style="italic")]
+    if not i["verdicts"]:
+        parts.append(Text.from_markup(f"[{DIM}]none recorded yet[/]"))
+    for v in i["verdicts"]:
+        mark = "[green]✔ passed[/]" if v["passed"] else "[red]✖ failed[/]" if v["passed"] is False else f"[{DIM}]{v['outcome'].lower()}[/]"
+        parts.append(Text.from_markup(f"{mark}  {v['controlId'] or '(no control)'}  [{DIM}]{v['evaluator']}[/]"))
+        parts.append(Text(f"    {v['explanation']}"))
+    return Group(*parts)
