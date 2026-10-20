@@ -43,7 +43,8 @@ DEFINITIONS = {
                "connector that says how to read it.",
     "identity": "An identity link says records from different sources are the same person; a reviewer confirms it "
                 "before any question may join them.",
-    "ask": "A question reads across sources and only reads; every answer says how current each source was.",
+    "ask": "An ask is a question you put to the records of every connected source at once, in words or as conditions; "
+           "it never changes anything, and its answer says how up to date each source was.",
     "cases": "A case is something a monitor found for a person to look into; nothing waits on it until someone "
              "resolves or dismisses it.",
     "decisions": "A decision is something that cannot happen until a person says yes or no, with a reason; whoever "
