@@ -17,6 +17,14 @@ TabPane {
     padding: 0;
 }
 
+.definition {
+    height: auto;
+    padding: 0 2;
+    background: $boost;
+    color: $text-muted;
+    text-style: italic;
+}
+
 .split {
     height: 1fr;
 }

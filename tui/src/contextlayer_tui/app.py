@@ -37,6 +37,28 @@ TABS: list[tuple[str, str, type]] = [
     ("glossary", "Glossary", GlossaryPane),
 ]
 
+# One sentence under the tab bar for each tab: what the thing the tab holds is.
+DEFINITIONS = {
+    "sources": "A source is a system of record the context layer reads, such as claims or the CRM, through a "
+               "connector that says how to read it.",
+    "identity": "An identity link says records from different sources are the same person; a reviewer confirms it "
+                "before any question may join them.",
+    "ask": "A question reads across sources and only reads; every answer says how current each source was.",
+    "cases": "A case is something a monitor found for a person to look into; nothing waits on it until someone "
+             "resolves or dismisses it.",
+    "decisions": "A decision is something that cannot happen until a person says yes or no, with a reason; whoever "
+                 "asked for an action cannot approve it.",
+    "playbooks": "A playbook is a set of fixed steps, approved by its owner, run on each case a monitor opens for it: "
+                 "a model judges, a path is chosen, actions are requested.",
+    "monitors": "A monitor is a saved question run on a schedule; each new record that matches opens a case.",
+    "governance": "A control is a rule the service promises to keep; its evidence shows whether it is kept, and the "
+                  "signed contract shows which rules were agreed.",
+    "domains": "A data domain is a group of record types that share one rule about who may read them; two are linked "
+               "in a question only under an approved join.",
+    "live": "A streamed change is a record a source pushed as it changed, shown the moment it arrives.",
+    "glossary": "The glossary defines, in plain words, every term the console uses.",
+}
+
 REFRESH_SECONDS = 15
 
 
@@ -63,6 +85,7 @@ class ContextLayerApp(App):
         with TabbedContent(initial="sources", id="tabs"):
             for tab_id, label, pane_class in TABS:
                 with TabPane(label, id=tab_id):
+                    yield Static(DEFINITIONS[tab_id], classes="definition", id=f"{tab_id}-definition")
                     yield pane_class(id=f"{tab_id}-pane")
         yield Footer()
 

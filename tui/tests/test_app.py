@@ -38,3 +38,14 @@ async def test_systems_lists_every_connector_and_marks_the_inactive_one(demo_app
         assert table.row_count == 4
         detail = text_of(demo_app.query_one("#sources-pane #detail", Static))
         assert "claims" in detail and "What it provides" in detail
+
+
+async def test_every_tab_says_what_the_thing_it_holds_is(demo_app):
+    from contextlayer_tui.app import DEFINITIONS
+
+    assert set(DEFINITIONS) == {tab_id for tab_id, _, _ in TABS}
+    async with demo_app.run_test(size=SIZE) as pilot:
+        await pilot.pause()
+        demo_app.action_goto("playbooks")
+        await pilot.pause()
+        assert text_of(demo_app.query_one("#playbooks-definition", Static)).startswith("A playbook is ")
