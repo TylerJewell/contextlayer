@@ -24,8 +24,10 @@ What a client of the context service can rely on. Every route is under `/v1/cont
 |---|---|---|---|
 | `GET /assistants` | read | | `{items:[{assistantId, purpose, owner, stage, releaseCount, approvedCount}]}` |
 | `POST /assistants/{id}` | operate | `{purpose}` | assistant |
-| `GET /assistants/{id}` | read | | `{assistantId, purpose, owner, stage, runningReleaseId, releases:[{releaseId, approved, approvedBy}]}` |
+| `GET /assistants/{id}` | read | | `{assistantId, purpose, owner, stage, runningReleaseId, releases:[{releaseId, approved, approvedBy, definition}]}` |
 | `POST /assistants/{id}/releases` | operate | `{definition}` | `{releaseId}` |
+| `POST /assistants/{id}/releases/check` | operate | `{definition}` | `{problems:[...]}`: what adding it as a release would refuse; empty when it would be accepted. Nothing is kept |
+| `GET /schema` | read | | `{types:[{entityType, fields:[{name, kind}]}]}`: the types and fields a playbook step may name, in the domains the caller may read. Never a value |
 | `POST /assistants/{id}/releases/{releaseId}/approve` | approve | `{rationale}` | assistant |
 | `POST /assistants/{id}/stage` | approve | `{stage: DRAFT\|SHADOW\|LIVE, rationale}` | assistant |
 | `POST /assistants/{id}/actions/{key}` | operate | `{actionType, payload}` | `{actionKey, status}` |

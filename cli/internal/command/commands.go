@@ -12,11 +12,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func (e *env) assistants() *cobra.Command {
+func (e *env) playbooks() *cobra.Command {
 	return &cobra.Command{
-		Use:   "assistants",
-		Short: "List the assistants",
-		Args:  cobra.NoArgs,
+		Use: "playbooks",
+		// The "assistants" alias keeps scripts that use that name working.
+		Aliases: []string{"assistants"},
+		Short:   "List the playbooks",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			result, err := e.run("GET", "/assistants", nil)
 			if err != nil {
@@ -328,10 +330,10 @@ func (e *env) cases() *cobra.Command {
 }
 
 func (e *env) halts() *cobra.Command {
-	group := &cobra.Command{Use: "halts", Short: "Stop an assistant from acting, and let it act again"}
+	group := &cobra.Command{Use: "halts", Short: "Stop a playbook from acting, and let it act again"}
 	group.AddCommand(&cobra.Command{
 		Use:   "list",
-		Short: "Show every assistant and whether it is halted",
+		Short: "Show every playbook and whether it is halted",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			result, err := e.run("GET", "/oversight/halts", nil)
@@ -349,8 +351,8 @@ func (e *env) halts() *cobra.Command {
 			verb, doing, done = "restart", "restart", "Restart requested for"
 		}
 		command := &cobra.Command{
-			Use:   verb + " ASSISTANT",
-			Short: fmt.Sprintf("Ask to %s an assistant", doing),
+			Use:   verb + " PLAYBOOK",
+			Short: fmt.Sprintf("Ask to %s a playbook", doing),
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				if strings.TrimSpace(reason) == "" {

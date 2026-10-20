@@ -9,7 +9,10 @@ that says so.
 from __future__ import annotations
 
 import copy
+import hashlib
 import itertools
+import json
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -32,20 +35,20 @@ _CONTROLS = [
     ("custom-cl0002", "A model may only answer with a label the playbook allows", "guardrail", "preventative",
      "aws-agentic-scoping.scope2-human-approval", "A model's answer outside the playbook's labels is refused.",
      "GuardrailDecisionRecorded", "WORKFLOW_STEP", None),
-    ("custom-cl0003", "An assistant action above the autonomy limit needs a person's approval", "human", "preventative",
+    ("custom-cl0003", "A playbook action above the autonomy limit needs a person's approval", "human", "preventative",
      "aws-agentic-scoping.scope2-human-approval", "Medium and high risk actions wait for a person who did not request them.",
      "HumanDecisionRecorded", "WORKFLOW_STEP", _HUMAN),
     ("custom-cl0004", "Identity links that join records are confirmed by a reviewer", "human", "preventative",
      "eu-ai-act.art14.4.d", "Records of different types are joined only through links a reviewer confirmed.",
      "HumanDecisionRecorded", "STATE_TRANSITION", {**_HUMAN, "roles": ["reviewer"], "minimumReviewSeconds": 0}),
-    ("custom-cl0005", "An assistant release and its stage changes are approved by its owner", "human", "preventative",
-     "aicpa-soc2.cc8-1.change-authorization", "A release becomes runnable, and an assistant changes stage, only on its owner's decision.",
+    ("custom-cl0005", "A playbook release and its stage changes are approved by its owner", "human", "preventative",
+     "aicpa-soc2.cc8-1.change-authorization", "A release becomes runnable, and a playbook changes stage, only on its owner's decision.",
      "HumanDecisionRecorded", "STATE_TRANSITION", {**_HUMAN, "minimumReviewSeconds": 0}),
     ("custom-cl0006", "A connector pack goes live only on someone else's activation", "human", "preventative",
      "aicpa-soc2.cc8-1.change-authorization", "The person who imported a pack version cannot be the one who activates it.",
      "HumanDecisionRecorded", "STATE_TRANSITION", {**_HUMAN, "minimumReviewSeconds": 0}),
-    ("custom-cl0007", "Actions the assistant may never take are refused by policy", "gate", "preventative",
-     "aws-agentic-scoping.scope2-human-approval", "Policy refuses never-by-assistant actions, and any action from an assistant not live.",
+    ("custom-cl0007", "Actions a playbook may never take are refused by policy", "gate", "preventative",
+     "aws-agentic-scoping.scope2-human-approval", "Policy refuses never-by-assistant actions, and any action from a playbook that is not live.",
      "ControlEvaluationRecorded", "WORKFLOW_STEP", None),
     ("custom-cl0008", "Rushed human decisions are counted", "eval", "detective", "eu-ai-act.art14.5.rubber-stamp-rate",
      "A decision submitted before the control's minimum review time is flagged below-minimum.",
@@ -74,6 +77,102 @@ def _now() -> int:
 
 def _iso(millis: int) -> str:
     return datetime.fromtimestamp(millis / 1000, tz=timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+_CLAIMS_WATCH_V1 = json.dumps({"steps": [
+    {"id": "judge", "type": "classify", "instruction": "Is the claim blocked by something only the customer can provide?",
+     "fields": ["Claim.notes"], "labels": ["BLOCKED", "MOVING"], "store": "impact", "next": "route"},
+    {"id": "route", "type": "branch", "var": "impact", "cases": {"BLOCKED": "attach"}, "otherwise": "note"},
+    {"id": "attach", "type": "act", "actionType": "claims.attachDocument", "payload": "{\"claimId\":\"{Claim.claimId}\"}",
+     "next": "note"},
+    {"id": "note", "type": "annotate", "text": "judged {impact}", "next": "end"}]})
+_CLAIMS_WATCH_V2 = json.dumps({"steps": [
+    {"id": "judge", "type": "classify", "instruction": "Is the claim blocked by something only the customer can provide?",
+     "fields": ["Claim.notes", "Claim.daysOpen"], "labels": ["BLOCKED", "MOVING"], "store": "impact", "next": "route"},
+    {"id": "route", "type": "branch", "var": "impact", "cases": {"BLOCKED": "attach"}, "otherwise": "note"},
+    {"id": "attach", "type": "act", "actionType": "claims.attachDocument",
+     "payload": "{\"claimId\":\"{Claim.claimId}\",\"text\":\"Escalated by claims-watch: judged {impact}\"}", "next": "note"},
+    {"id": "note", "type": "annotate", "text": "judged {impact} after {Claim.daysOpen} days", "next": "end"}]})
+_RENEWAL_NUDGE = json.dumps({"steps": [
+    {"id": "remind", "type": "annotate", "text": "renewal within 60 days: remind the advisor", "next": "end"}]})
+
+_ID = re.compile(r"[a-z][a-z0-9-]{0,30}")
+_LABEL = re.compile(r"[A-Z][A-Z0-9_]{0,30}")
+_NAME = re.compile(r"[a-z][A-Za-z0-9_]{0,30}")
+
+
+def _check_playbook(definition: str) -> list[str]:
+    """The demo's stand-in for the service's check of a playbook (domain/Playbook.validate), with the same rules."""
+    try:
+        steps = json.loads(definition)["steps"]
+    except (ValueError, KeyError, TypeError):
+        return ["the definition is not a valid playbook"]
+    if not steps:
+        return ["a playbook needs at least one step"]
+    errors = ["at most 20 steps"] if len(steps) > 20 else []
+    ids: set[str] = set()
+    for step in steps:
+        if not _ID.fullmatch(str(step.get("id", ""))):
+            errors.append("a step id must be lowercase letters, digits and hyphens")
+        elif step["id"] in ids:
+            errors.append(f"step {step['id']} is declared twice")
+        else:
+            ids.add(step["id"])
+
+    def target(at: str, what: str, value: Any) -> None:
+        if value != "end" and value not in ids:
+            errors.append(f"{at}: {what} must name a step or 'end'")
+
+    for step in steps:
+        at, kind = f"step {step.get('id')}", step.get("type")
+        if kind == "classify":
+            if not step.get("instruction"):
+                errors.append(f"{at}: instruction is required")
+            if not step.get("fields"):
+                errors.append(f"{at}: fields (what the model may see) is required")
+            labels = step.get("labels") or []
+            if not 2 <= len(labels) <= 12 or not all(_LABEL.fullmatch(str(x)) for x in labels):
+                errors.append(f"{at}: labels must be 2 to 12 names in capitals")
+            if not _NAME.fullmatch(str(step.get("store", ""))):
+                errors.append(f"{at}: store must be a name")
+            target(at, "next", step.get("next"))
+        elif kind == "branch":
+            if not _NAME.fullmatch(str(step.get("var", ""))):
+                errors.append(f"{at}: var must be a name")
+            if not step.get("cases"):
+                errors.append(f"{at}: cases is required")
+            for value in (step.get("cases") or {}).values():
+                target(at, "a case target", value)
+            target(at, "otherwise", step.get("otherwise"))
+        elif kind == "act":
+            if not step.get("actionType"):
+                errors.append(f"{at}: actionType is required")
+            target(at, "next", step.get("next"))
+        elif kind == "annotate":
+            if not step.get("text"):
+                errors.append(f"{at}: text is required")
+            target(at, "next", step.get("next"))
+        else:
+            errors.append(f"{at}: type must be one of ['act', 'annotate', 'branch', 'classify']")
+    if errors:
+        return errors
+
+    graph = {s["id"]: [*(s.get("cases") or {}).values(), s.get("otherwise")] if s["type"] == "branch" else [s.get("next")]
+             for s in steps}
+    done: set[str] = set()
+
+    def loops(node: str, path: set[str]) -> bool:
+        if node == "end" or node in done:
+            return False
+        if node in path:
+            return True
+        path.add(node)
+        found = any(loops(n, path) for n in graph.get(node, []))
+        path.discard(node)
+        done.add(node)
+        return found
+
+    return ["steps must only move forward; the steps form a loop"] if any(loops(n, set()) for n in graph) else []
 
 
 class DemoApi:
@@ -143,14 +242,15 @@ class DemoApi:
             "claims-watch": {
                 "assistantId": "claims-watch", "purpose": "Make sure no claim over 30 days stalls on our side",
                 "owner": "dan.m", "stage": "SHADOW",
-                "releases": [{"releaseId": "7f3a91c0", "approved": True, "approvedBy": "dan.m"},
-                             {"releaseId": "9c01d4e8", "approved": False, "approvedBy": ""}],
+                "releases": [{"releaseId": "7f3a91c0", "approved": True, "approvedBy": "dan.m", "definition": _CLAIMS_WATCH_V1},
+                             {"releaseId": "9c01d4e8", "approved": False, "approvedBy": "", "definition": _CLAIMS_WATCH_V2}],
                 "runningReleaseId": "9c01d4e8",
             },
             "renewal-nudge": {
                 "assistantId": "renewal-nudge", "purpose": "Remind advisors of policies renewing within 60 days",
                 "owner": "priya.k", "stage": "DRAFT",
-                "releases": [{"releaseId": "b12e07aa", "approved": False, "approvedBy": ""}], "runningReleaseId": "",
+                "releases": [{"releaseId": "b12e07aa", "approved": False, "approvedBy": "", "definition": _RENEWAL_NUDGE}],
+                "runningReleaseId": "",
             },
         }
         self._shadow = [
@@ -190,13 +290,13 @@ class DemoApi:
             "id": APPROVAL_ID, "state": "OPEN", "pending": True,
             "control": {"rowId": "custom-cl0003", "name": _CONTROLS[2][1], "corpusRef": _CONTROLS[2][4]},
             "flavor": "human-system-authorization", "mode": "HITL", "blocking": True,
-            "subject": {"kind": "action", "summary": "Run claims.attachDocument for assistant claims-watch",
+            "subject": {"kind": "action", "summary": "Run claims.attachDocument for playbook claims-watch",
                         "service": "contextlayer", "agent": "claims-watch",
                         "detail": {"payload": "{\"claimId\":\"CL-889\",\"text\":\"Escalated by claims-watch: judged BLOCKED\"}"}},
             "trigger": {"detector": "workflow", "rule": "risk=NEEDS_APPROVAL", "reason": "a person must approve this action"},
-            "ask": {"question": "Should assistant claims-watch be allowed to run claims.attachDocument?",
-                    "checks": [{"text": "The action is what the assistant meant to do.", "section": "subject"},
-                               {"text": "The payload is within what the assistant may change.", "section": "subject"}]},
+            "ask": {"question": "Should playbook claims-watch be allowed to run claims.attachDocument?",
+                    "checks": [{"text": "The action is what the playbook meant to do.", "section": "subject"},
+                               {"text": "The payload is within what the playbook may change.", "section": "subject"}]},
             "routing": {"roles": ["approver"], "reviewMode": "SINGLE", "required": 1, "independentOf": ["priya.k"]},
             "holder": None,
             "sla": {"target": "PT24H", "dueAt": _iso(raised + 24 * _HOUR), "state": "running",
@@ -218,9 +318,9 @@ class DemoApi:
                      "text": f"opened for {claim_id}, routed to Claims Team B"}]
         if with_playbook:
             timeline += [
-                {"at": opened_at + 4_000, "actor": "assistant claims-watch", "text": "started release 7f3a91c0 (SHADOW)"},
-                {"at": opened_at + 9_000, "actor": "assistant claims-watch", "text": "judged impact = BLOCKED (1 field(s) shown to the model, ledger:demo-interaction-1)"},
-                {"at": opened_at + 9_500, "actor": "assistant claims-watch",
+                {"at": opened_at + 4_000, "actor": "playbook claims-watch", "text": "started release 7f3a91c0 (SHADOW)"},
+                {"at": opened_at + 9_000, "actor": "playbook claims-watch", "text": "judged impact = BLOCKED (1 field(s) shown to the model, ledger:demo-interaction-1)"},
+                {"at": opened_at + 9_500, "actor": "playbook claims-watch",
                  "text": "requested claims.attachDocument: AWAITING_APPROVAL (a person must approve this action)"},
             ]
         if status == "NO_LONGER_MATCHING":
@@ -475,13 +575,13 @@ class DemoApi:
         if not self._holds("reviewer"):
             raise ApiError("requires permission REVIEW", 403)
         if assistant_id not in self._assistants:
-            raise ApiError("assistant not found", 404)
+            raise ApiError("playbook not found", 404)
         if not reason.strip():
             raise ApiError("a reason is required", 422)
         if lift and assistant_id not in self._halted:
-            raise ApiError("the assistant is not halted", 409)
+            raise ApiError("the playbook is not halted", 409)
         if not lift and assistant_id in self._halted:
-            raise ApiError("the assistant is already halted", 409)
+            raise ApiError("the playbook is already halted", 409)
         verb = "Restart" if lift else "Halt"
         now = _now()
         event = {
@@ -491,7 +591,7 @@ class DemoApi:
             "subject": {"kind": "system", "summary": f"{verb} assistant {assistant_id}", "service": "contextlayer",
                         "agent": assistant_id},
             "trigger": {"detector": "person", "rule": verb.lower() + " requested", "reason": reason},
-            "ask": {"question": f"Should assistant {assistant_id} be {'allowed to act again' if lift else 'stopped'}?",
+            "ask": {"question": f"Should playbook {assistant_id} be {'allowed to act again' if lift else 'stopped'}?",
                     "checks": [{"text": "The cause of the halt is understood." if lift else "Stopping it now is better than letting it continue.",
                                 "section": "subject"}]},
             "routing": {"roles": ["approver"], "reviewMode": "TWO_PERSON" if lift else "SINGLE",
@@ -551,7 +651,7 @@ class DemoApi:
         case = self._cases.get(self._approval_case)
         if case is not None:
             who = "you"
-            name = f"assistant {event['subject']['agent']}"
+            name = f"playbook {event['subject']['agent']}"
             if action == "APPROVE":
                 self._note(case, name, f"{event['_actionType']} approved by {who}")
                 self._note(case, name, f"{event['_actionType']} succeeded")
@@ -598,6 +698,31 @@ class DemoApi:
         if assistant_id not in self._assistants:
             raise ApiError("not found", 404)
         return copy.deepcopy(self._assistants[assistant_id])
+
+    async def create_assistant(self, assistant_id: str, purpose: str) -> dict[str, Any]:
+        if assistant_id in self._assistants:
+            raise ApiError("playbook already exists", 409)
+        self._assistants[assistant_id] = {"assistantId": assistant_id, "purpose": purpose, "owner": self.subject,
+                                          "stage": "DRAFT", "releases": [], "runningReleaseId": ""}
+        return copy.deepcopy(self._assistants[assistant_id])
+
+    async def add_release(self, assistant_id: str, definition: str) -> dict[str, Any]:
+        problems = _check_playbook(definition)
+        if problems:
+            raise ApiError("; ".join(problems), 400)
+        release_id = hashlib.sha256(definition.encode()).hexdigest()[:8]
+        self._assistants[assistant_id]["releases"].append(
+            {"releaseId": release_id, "approved": False, "approvedBy": "", "definition": definition})
+        return {"releaseId": release_id}
+
+    async def check_release(self, assistant_id: str, definition: str) -> list[str]:
+        return _check_playbook(definition)
+
+    async def schema(self) -> list[dict[str, Any]]:
+        return [{"entityType": "Claim", "fields": [{"name": n, "kind": k} for n, k in
+                                                   (("claimId", "string"), ("status", "string"), ("daysOpen", "number"),
+                                                    ("notes", "string"), ("clientId", "string"))]},
+                {"entityType": "Account", "fields": [{"name": "accountId", "kind": "string"}, {"name": "balance", "kind": "number"}]}]
 
     async def assistant_actions(self, assistant_id: str) -> list[dict[str, Any]]:
         return [copy.deepcopy(a) for a in self._shadow if a["assistantId"] == assistant_id]
@@ -705,10 +830,10 @@ class DemoApi:
                                      ("coveragePartial", "asserted but with expected documents missing or too old")) if g[k]]
             summary = "; ".join(f["text"].rstrip(".") for f in facts) + "."
             return self._answer("GAPS", "", facts, ["These checks look at the claims and at enforcing records. They do not judge whether a control is the right one."], summary)
-        if any(w in words for w in ("override", "approve", "approval", "sign", "assistant action")):
+        if any(w in words for w in ("override", "approve", "approval", "sign", "assistant action", "playbook action")):
             c = next(x for x in (await self.compliance())["controls"] if x["controlId"] == "custom-cl0003")
             doc = self._documents.get("override procedure")
-            facts = [{"text": "Control custom-cl0003 (An assistant action above the autonomy limit needs a person's approval) is a human control that acts at WORKFLOW_STEP and is proved by HumanDecisionRecorded records.", "refs": ["control:custom-cl0003"]},
+            facts = [{"text": "Control custom-cl0003 (A playbook action above the autonomy limit needs a person's approval) is a human control that acts at WORKFLOW_STEP and is proved by HumanDecisionRecorded records.", "refs": ["control:custom-cl0003"]},
                      {"text": f"Its standing is {c['status']}: {c['why']}. In the last 90 days it ran {c['enforcing']} time(s) as an enforcing control: {c['upheld']} upheld, {c['breached']} breached, {c['flagged']} flagged.", "refs": ["control:custom-cl0003"]},
                      {"text": "It was accepted by dana. The reason given: the system owner takes this on", "refs": ["control:custom-cl0003", "person:dana"]},
                      {"text": "Revision 1 of the assertion about its evidence was made by erin: HumanDecisionRecorded records count as evidence. The reason given: human reviews are the evidence", "refs": ["control:custom-cl0003", "person:erin"]},

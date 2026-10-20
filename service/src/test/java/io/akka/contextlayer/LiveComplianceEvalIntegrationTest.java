@@ -32,8 +32,8 @@ public class LiveComplianceEvalIntegrationTest extends LayerTestBase {
   }
 
   private static final List<Case> CASES = List.of(
-      ask("c01", "Where do we stand on approving assistant actions?", Controls.ACTION_APPROVAL, "CONTROL_STATUS"),
-      ask("c02", "Can a person override what the assistant does, and who signed that off?", Controls.ACTION_APPROVAL, "CONTROL_STATUS", "HUMAN_DECISIONS"),
+      ask("c01", "Where do we stand on approving playbook actions?", Controls.ACTION_APPROVAL, "CONTROL_STATUS"),
+      ask("c02", "Can a person override what the playbook does, and who signed that off?", Controls.ACTION_APPROVAL, "CONTROL_STATUS", "HUMAN_DECISIONS"),
       ask("c03", "What did people decide about identity links in the last 30 days?", Controls.IDENTITY_REVIEW, "HUMAN_DECISIONS"),
       ask("c04", "What evidence do we have that personal data is masked before a model is called?", Controls.MASK_PERSONAL_DATA, "EVIDENCE_FOR_CONTROL", "CONTROL_STATUS"),
       ask("c05", "Which of our controls have nobody signed off or are missing documents?", "", "GAPS"),

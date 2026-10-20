@@ -53,7 +53,7 @@ Before it runs, a question is checked against the project's data domains. Every 
 ## Governance
 
 - **Controls** are in `governance/controls.yaml` with stable ids. Every decision and every refusal is evidence under a control.
-- **People decide** what must not be decided by software: which records are one person, which actions go ahead, which assistants
+- **People decide** what must not be decided by software: which records are one person, which actions go ahead, which playbooks
   stop, who may read which domain, and whether two domains may be linked. Each decision records a reason and the authority it
   was made under, and whoever asked cannot approve.
 - **Claims are kept apart.** The acceptance of a control, the assertion of what counts as its evidence, and the documents that

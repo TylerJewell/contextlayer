@@ -1,6 +1,6 @@
 # contextlayer-akka
 
-A governed context layer on the Akka SDK: staged assistants with approved releases, an
+A governed context layer on the Akka SDK: staged playbooks with approved releases, an
 idempotent action ledger with human approval, connector packs for sources, a graph entity
 store, cross-source identity linking with a review queue, and structured questions that report how
 fresh each source was. Built from the requirements and design in
@@ -12,7 +12,7 @@ Port: 9162 (registered in `C:\Users\tyler\CLAUDE.md`).
 
 | Requirement | Component |
 |---|---|
-| Assistants, releases, Draft/Shadow/Live (AST-01..03) | `AssistantEntity`, `domain/Assistant` |
+| Playbooks, releases, Draft/Shadow/Live (AST-01..03); the code calls a playbook an assistant | `AssistantEntity`, `domain/Assistant` |
 | Risk classes, approvals, expiry, unknown outcomes (AST-04..06) | `ActionLedgerEntity`, `ActionWorkflow`, `domain/ActionPolicy`, `ActionCatalog` |
 | Identity links, confidence, review, reversal (ENT-02..04) | `IdentityEntity`, `domain/IdentityRules`, `IdentityCluster`, `IdentityGraphConsumer` |
 | Audit trail (AUD-01..02) | Event journal of every entity; `ActionLedgerView`, `IdentityReviewView` |
@@ -24,7 +24,7 @@ Port: 9162 (registered in `C:\Users\tyler\CLAUDE.md`).
 | Structured questions with a freshness report (QRY-01..05) | `domain/StructuredQuestion`, `Neo4jQueryCompiler`, `QuestionService`, `EntityRefresher`, `RefreshStatusEntity` |
 | Monitors, cases, case timeline (MON-01..03) | `MonitorEntity`, `MonitorRunWorkflow`, `MonitorTimedAction`, `CaseEntity`, `CaseView`; a run that could not read every source never closes a case |
 | Model step with declared outputs and field allow-list (AI-01..03) | `ClassifierAgent`; `Playbook` classify steps; an answer outside the allowed labels fails the step |
-| Assistant work as validated data, no code (DESIGN D-05) | `domain/Playbook`, `PlaybookWorkflow`; releases are validated as playbooks when added |
+| A playbook's steps as validated data, no code (DESIGN D-05) | `domain/Playbook`, `PlaybookWorkflow`; releases are validated as playbooks when added |
 
 ## Running with Neo4j
 
@@ -78,9 +78,9 @@ under `/v1/context`.
   (raise a new one), and a standing approval would bypass the four-eyes rule.
 - An event's deadline can be extended once, by at most seven days, with a reason. Identity reviews
   that confirmed links already cover are left out of the oversight queue, as in the review queue.
-- Halts: `POST /oversight/halts` raises an event to halt an assistant (one approver decides) or to
+- Halts: `POST /oversight/halts` raises an event to halt a playbook (one approver decides) or to
   restart it (two different approvers). While halted its actions are refused, playbooks stop, and an
-  action approved after the halt does not run. `GET /oversight/halts` lists each assistant's state.
+  action approved after the halt does not run. `GET /oversight/halts` lists each playbook's state.
 - Evidence is derived from what happened and is append-only. `GET .../governance/evidence` exports it;
   `GET .../governance/compliance` reports per control: satisfied, failing, unresolved, stale,
   no-evidence or waived (admin only, `POST .../controls/{id}/waiver`). Shadow, advisory and test
@@ -218,7 +218,7 @@ An assertion expects documents by name and age, so one document backs every cont
 `GET /v1/context/governance/documents` lists them and `.../documents/{name}` shows every version.
 
 **Questions about the controls.** `POST /v1/context/governance/ask` with `{"text": "..."}` answers an auditor's question, such as what
-evidence there is that a person can override the assistant and whether it is tamper-evident. It is built so the answer cannot say
+evidence there is that a person can override the playbook and whether it is tamper-evident. It is built so the answer cannot say
 more than the records do. A model only chooses which of a fixed list of questions was asked (control status, evidence for a
 control, human decisions, gaps, integrity) and which control and period it is about, and is shown no records. The choice is
 checked against the catalog. The facts are then computed by fixed templates from recorded data, each with the records it comes

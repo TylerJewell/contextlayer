@@ -23,7 +23,7 @@ def _millis(iso: str | None) -> int:
 
 
 class DecisionsPane(Pane):
-    columns = ("Wants to", "Assistant", "State", "Due", "Held by")
+    columns = ("Wants to", "Playbook", "State", "Due", "Held by")
     empty_text = "Nothing is waiting for a person."
     BINDINGS = [
         Binding("a", "decide(True)", "Approve"),

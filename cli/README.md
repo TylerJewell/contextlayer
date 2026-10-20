@@ -6,7 +6,7 @@ The command line for the governed context service.
 go install ./cmd/akka-context
 export AKKA_ACCESS_TOKEN=...        # the token, as the akka CLI reads it
 export CONTEXT_URL=http://localhost:9162
-akka-context assistants
+akka-context playbooks
 akka-context ask --words "open claims over a month for wealthy clients"
 akka-context ask --words "open claims" --run
 akka-context watch -f question.json   # the answer, then rows added and removed as data changes
@@ -21,7 +21,7 @@ akka-context contract                          # the signed control contract, an
 akka-context decisions list
 akka-context decisions claim ID
 akka-context decisions decide ID --approve --rationale "the payload is routine"
-akka-context halts halt ASSISTANT --reason "wrong customers"
+akka-context halts halt PLAYBOOK --reason "wrong customers"
 akka-context compliance
 ```
 

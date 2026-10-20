@@ -35,7 +35,7 @@ review or Enterprise.
 ## 3. A command group in the Akka CLI
 
 **Needed.** `akka context ...` commands in the CLI, mounted the way `akka optimize` is. The commands in
-`contextlayer-cli` are the first cut: `assistants`, `decisions`, `ask`, `cases`, `halts`, `controls`
+`contextlayer-cli` are the first cut: `playbooks`, `decisions`, `ask`, `cases`, `halts`, `controls`
 and `compliance`.
 
 **Until then.** `akka-context` runs on its own and takes its token from `AKKA_ACCESS_TOKEN`.

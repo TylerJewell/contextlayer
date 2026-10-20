@@ -121,7 +121,7 @@ def dot(status: str) -> str:
 
 
 _RISK = {"UNATTENDED": ("runs unattended", OK), "NEEDS_APPROVAL": ("needs approval", INFO),
-         "NEVER_BY_ASSISTANT": ("never by an assistant", BAD)}
+         "NEVER_BY_ASSISTANT": ("never by a playbook", BAD)}
 
 
 def risk(name: str) -> str:

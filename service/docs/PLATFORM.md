@@ -22,8 +22,8 @@ Optimize. This page says what that means for the code, and what the platform sti
 
 | Permission | Allows |
 |---|---|
-| `project.governedContext.read` | Look at assistants, connectors, cases, monitors, evidence and compliance |
-| `project.governedContext.operate` | Feed records in, ask questions, request actions, run monitors, build assistants and connectors |
+| `project.governedContext.read` | Look at playbooks, connectors, cases, monitors, evidence and compliance |
+| `project.governedContext.operate` | Feed records in, ask questions, request actions, run monitors, build playbooks and connectors |
 | `project.governedContext.review` | Judge identity links, cases, human events and unknown action outcomes |
 | `project.governedContext.approve` | Authorize an action, a release, a stage change or a connector |
 | `project.governedContext.administer` | Waive controls and set where notifications go |

@@ -9,7 +9,7 @@ public final class ActionPolicy {
 
   /** A person halted the assistant; nothing it asks for is done until the halt is lifted. */
   public static Decision halted() {
-    return new Decision(ActionStatus.DENIED, "assistant is halted");
+    return new Decision(ActionStatus.DENIED, "playbook is halted");
   }
 
   /** The action type is not in the catalog, or its connector pack is not live. */
@@ -22,7 +22,7 @@ public final class ActionPolicy {
       return new Decision(ActionStatus.DENIED, "this action is never available to assistants");
     }
     return switch (stage) {
-      case DRAFT -> new Decision(ActionStatus.DENIED, "assistant is in draft");
+      case DRAFT -> new Decision(ActionStatus.DENIED, "playbook is in draft");
       case SHADOW -> new Decision(ActionStatus.WOULD_DO, "shadow mode: recorded, not sent");
       case LIVE -> {
         if (!hasRunnableRelease) {

@@ -370,7 +370,7 @@ async def main() -> None:
 
         # ---- halt
         film.beat("halt", "If anything looks wrong, one approver can halt the assistant. Everything it asks for is refused until two different approvers restart it.")
-        app.action_goto("assistants")
+        app.action_goto("playbooks")
         await pilot.pause(1.0)
         await shot("Assistants: stage, releases, and what it has done")
         await pilot.press("h")

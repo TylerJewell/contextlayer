@@ -40,12 +40,14 @@ public class AuthIntegrationTest extends LayerTestBase {
         "GET " + base + "/connectors/{packName}/entities/{entityType}/refresh-status",
         "GET " + base + "/connectors", "GET " + base + "/assistants",
         "GET " + base + "/monitors", "GET " + base + "/monitors/{monitorId}",
-        "GET " + base + "/cases", "GET " + base + "/cases/status/{status}", "GET " + base + "/cases/{caseId}")) {
+        "GET " + base + "/cases", "GET " + base + "/cases/status/{status}", "GET " + base + "/cases/{caseId}",
+        "GET " + base + "/schema")) {
       ROUTES.put(read, Permission.READ);
     }
     // building, feeding and asking
     for (var operate : List.of(
         "POST " + base + "/assistants/{assistantId}", "POST " + base + "/assistants/{assistantId}/releases",
+        "POST " + base + "/assistants/{assistantId}/releases/check",
         "POST " + base + "/assistants/{assistantId}/actions/{actionKey}",
         "POST " + base + "/connectors/{packName}/versions", "POST " + base + "/records",
         "POST " + base + "/questions", "POST " + base + "/questions/draft",

@@ -72,7 +72,7 @@ class CasesPane(Pane):
         head = Text.from_markup(f"[bold]{case['key']}[/]   {badge(case['status'])}")
         sub = Text.from_markup(f"[{DIM}]found by monitor {case['monitorId']} (v{case['monitorVersion']})"
                                f" · routed to {case['routeTo'] or '—'}"
-                               + (f" · handled by assistant {case['assistantId']}" if case['assistantId'] else "") + "[/]")
+                               + (f" · handled by playbook {case['assistantId']}" if case['assistantId'] else "") + "[/]")
         evidence = Table(title="Evidence", title_justify="left", box=None, expand=True, show_header=False)
         evidence.add_column(style=DIM, no_wrap=True)
         evidence.add_column()

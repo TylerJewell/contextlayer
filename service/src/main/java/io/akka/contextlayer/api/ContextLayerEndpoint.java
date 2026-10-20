@@ -33,6 +33,7 @@ import io.akka.contextlayer.domain.AssistantStage;
 import io.akka.contextlayer.domain.ConnectorPack;
 import io.akka.contextlayer.domain.IdentityRules;
 import io.akka.contextlayer.domain.PackDefinition;
+import io.akka.contextlayer.domain.Playbook;
 import io.akka.contextlayer.domain.RefreshStatus;
 import io.akka.contextlayer.domain.RiskClass;
 import io.akka.contextlayer.domain.StructuredQuestion;
@@ -82,7 +83,18 @@ public class ContextLayerEndpoint extends PrincipalEndpoint {
   /** What a person says when deciding something that needs their approval. */
   public record DecisionRequest(String rationale) {}
 
-  public record ReleaseView(String releaseId, boolean approved, String approvedBy) {}
+  /** @param definition the release's playbook, as it was added */
+  public record ReleaseView(String releaseId, boolean approved, String approvedBy, String definition) {}
+
+  /** What is wrong with a playbook; empty when it would be accepted as a release. */
+  public record CheckResponse(List<String> problems) {}
+
+  public record SchemaField(String name, String kind) {}
+
+  public record SchemaType(String entityType, List<SchemaField> fields) {}
+
+  /** The record types and fields a playbook step may name, without any of their values. */
+  public record SchemaResponse(List<SchemaType> types) {}
 
   public record AssistantResponse(
       String assistantId,
@@ -158,6 +170,20 @@ public class ContextLayerEndpoint extends PrincipalEndpoint {
     return new ReleaseResponse(releaseId);
   }
 
+  /** Checks a playbook as adding it as a release would, and keeps nothing. */
+  @Post("/assistants/{assistantId}/releases/check")
+  public CheckResponse checkRelease(String assistantId, AddReleaseRequest body) {
+    authorize(Permission.OPERATE);
+    required(body);
+    if (blank(body.definition())) return new CheckResponse(List.of("the playbook is empty"));
+    try {
+      Playbook.parse(body.definition());
+      return new CheckResponse(List.of());
+    } catch (IllegalArgumentException e) {
+      return new CheckResponse(List.of(e.getMessage().split("; ")));
+    }
+  }
+
   @Post("/assistants/{assistantId}/releases/{releaseId}/approve")
   public AssistantResponse approveRelease(String assistantId, String releaseId, DecisionRequest body) {
     var caller = authorize(Permission.APPROVE);
@@ -196,7 +222,7 @@ public class ContextLayerEndpoint extends PrincipalEndpoint {
         eventId("stage", project(), assistantId, body.stage() + "-" + System.currentTimeMillis()), "change",
         "Move assistant " + assistantId + " to " + body.stage(), assistantId,
         Map.of("assistantId", assistantId, "stage", body.stage().name()),
-        "Should assistant " + assistantId + " move to " + body.stage() + "?",
+        "Should playbook " + assistantId + " move to " + body.stage() + "?",
         "system:stages", "APPROVE", body.rationale());
     GateDecisions.applying(componentClient, eventId, "stage changed to " + body.stage(), () -> call(() ->
         componentClient.forEventSourcedEntity(ScopedId.of(project(), assistantId))
@@ -614,6 +640,20 @@ public class ContextLayerEndpoint extends PrincipalEndpoint {
         drafted.explanation(), drafted.clarification(), drafted.problems());
   }
 
+  /**
+   * The types and fields a caller may name in a playbook step: the ones read so far, in the data domains the caller
+   * is granted. Names and kinds only; a value is never returned.
+   */
+  @Get("/schema")
+  public SchemaResponse schema() {
+    var caller = authorize(Permission.READ);
+    var readable = DomainAccess.config(componentClient, project()).readableTypes(caller.subject(), DomainAccess.rolesOf(caller));
+    return new SchemaResponse(entityStore.schema(project()).stream()
+        .filter(t -> readable.isEmpty() || readable.get().contains(t.entityType()))
+        .map(t -> new SchemaType(t.entityType(), t.fields().stream().map(f -> new SchemaField(f.name(), f.kind())).toList()))
+        .toList());
+  }
+
   /** Reads the entity type from its source now, whatever its freshness policy. */
   @Post("/connectors/{packName}/entities/{entityType}/refresh")
   public RefreshResponse refresh(String packName, String entityType) {
@@ -656,7 +696,7 @@ public class ContextLayerEndpoint extends PrincipalEndpoint {
   private static AssistantResponse toResponse(Assistant a) {
     var running = a.runnableRelease().map(Assistant.Release::releaseId).orElse("");
     var releases = a.releases().stream()
-        .map(r -> new ReleaseView(r.releaseId(), r.approved(), r.approvedBy()))
+        .map(r -> new ReleaseView(r.releaseId(), r.approved(), r.approvedBy(), r.definition()))
         .toList();
     return new AssistantResponse(a.assistantId(), a.purpose(), a.owner(), a.stage().name(), running, releases);
   }

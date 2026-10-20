@@ -25,11 +25,11 @@ class CaseFileTest {
   @Test
   void everyChangeAddsATimelineEntryWithWhoDidIt() {
     var c = opened()
-        .apply(new CaseEvent.Annotated("assistant claims-watch", "form not attached", 2000L))
+        .apply(new CaseEvent.Annotated("playbook claims-watch", "form not attached", 2000L))
         .apply(new CaseEvent.Resolved("priya", "attached the form", 3000L));
     assertThat(c.status()).isEqualTo(CaseFile.Status.RESOLVED);
     assertThat(c.timeline()).extracting(CaseFile.TimelineItem::actor)
-        .containsExactly("monitor m1", "assistant claims-watch", "priya");
+        .containsExactly("monitor m1", "playbook claims-watch", "priya");
   }
 
   @Test

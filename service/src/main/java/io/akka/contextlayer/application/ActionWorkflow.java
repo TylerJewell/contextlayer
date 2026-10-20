@@ -184,12 +184,12 @@ public class ActionWorkflow extends Workflow<ActionWorkflow.Run> {
   private void raiseApproval(Run run, RiskClass risk, String why) {
     var raised = HumanEvents.raised(ControlCatalog.current(), Controls.ACTION_APPROVAL,
         humanEventId(run.orgId(), run.assistantId(), run.actionKey()), run.orgId(), "action",
-        "Run " + run.actionType() + " for assistant " + run.assistantId(), run.assistantId(),
+        "Run " + run.actionType() + " for playbook " + run.assistantId(), run.assistantId(),
         Map.of("actionKey", run.actionKey(), "actionType", run.actionType(), "risk", risk.name(),
             "payload", shownPayload(run.payload())),
         "workflow", "risk=" + risk.name(), why,
-        "Should assistant " + run.assistantId() + " be allowed to run " + run.actionType() + "?",
-        List.of("The action is what the assistant meant to do.", "The payload is within what the assistant may change."),
+        "Should playbook " + run.assistantId() + " be allowed to run " + run.actionType() + "?",
+        List.of("The action is what the playbook meant to do.", "The payload is within what the playbook may change."),
         run.requestedBy(), System.currentTimeMillis());
     componentClient.forEventSourcedEntity(raised.id()).method(HumanEventEntity::raise).invoke(raised);
   }
@@ -245,9 +245,9 @@ public class ActionWorkflow extends Workflow<ActionWorkflow.Run> {
     // A halt that came after the request but before this approval still stops the action.
     if (HaltEntity.isHalted(componentClient, run.orgId(), run.assistantId())) {
       componentClient.forEventSourcedEntity(ledgerId(run)).method(ActionLedgerEntity::reject)
-          .invoke(new ActionLedgerEntity.Reject("system", "assistant is halted"));
-      note(run, run.actionType() + " was approved by " + run.decidedBy() + " but the assistant is halted; it did not run");
-      settleEvent(run, "approved, but not run: the assistant is halted");
+          .invoke(new ActionLedgerEntity.Reject("system", "playbook is halted"));
+      note(run, run.actionType() + " was approved by " + run.decidedBy() + " but the playbook is halted; it did not run");
+      settleEvent(run, "approved, but not run: the playbook is halted");
       return stepEffects().updateState(run.withPhase(ActionStatus.REJECTED.name())).thenEnd();
     }
     componentClient.forEventSourcedEntity(ledgerId(run)).method(ActionLedgerEntity::approve).invoke(new ActionLedgerEntity.Approve(run.decidedBy()));
@@ -348,7 +348,7 @@ public class ActionWorkflow extends Workflow<ActionWorkflow.Run> {
     if (run.caseId() == null || run.caseId().isBlank()) return;
     try {
       componentClient.forEventSourcedEntity(run.caseId()).method(CaseEntity::annotate)
-          .invoke(new CaseEntity.Annotate("assistant " + run.assistantId(), text, System.currentTimeMillis()));
+          .invoke(new CaseEntity.Annotate("playbook " + run.assistantId(), text, System.currentTimeMillis()));
     } catch (RuntimeException e) {
       // intentionally ignored: see above
     }

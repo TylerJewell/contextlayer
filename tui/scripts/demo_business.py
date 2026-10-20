@@ -235,7 +235,7 @@ async def main() -> None:
         # ---- assistants
         film.beat("halt", "If anything looks wrong, one approver can stop an assistant at once. Everything it asks for is refused. "
                   "Restarting it takes two different approvers, so the decision to start again is never made alone.")
-        app.action_goto("assistants")
+        app.action_goto("playbooks")
         await pilot.pause(1.0)
         await shot("Assistants: each one is drafted, then shadowed, then live")
         await pilot.press("h")

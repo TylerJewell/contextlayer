@@ -290,18 +290,18 @@ public class OversightEndpoint extends PrincipalEndpoint {
     try {
       componentClient.forEventSourcedEntity(assistantId).method(AssistantEntity::get).invoke();
     } catch (IllegalArgumentException e) { // the assistant entity refuses a read of one that does not exist
-      return error(StatusCodes.NOT_FOUND, "assistant not found");
+      return error(StatusCodes.NOT_FOUND, "playbook not found");
     }
     boolean halted = HaltEntity.isHalted(componentClient, project(), body.target());
-    if (lift && !halted) return error(StatusCodes.CONFLICT, "the assistant is not halted");
-    if (!lift && halted) return error(StatusCodes.CONFLICT, "the assistant is already halted");
+    if (lift && !halted) return error(StatusCodes.CONFLICT, "the playbook is not halted");
+    if (!lift && halted) return error(StatusCodes.CONFLICT, "the playbook is already halted");
 
     var verb = lift ? "Restart" : "Halt";
     var raised = HumanEvents.raised(ControlCatalog.current(), lift ? Controls.RESTART : Controls.HALT, id, project(),
         "system", verb + " assistant " + body.target(), body.target(),
         Map.of("scope", "assistant", "target", body.target(), "operation", lift ? "restart" : "halt"),
         "person", verb.toLowerCase() + " requested", body.reason().trim(),
-        lift ? "Should assistant " + body.target() + " be allowed to act again?" : "Should assistant " + body.target() + " be stopped?",
+        lift ? "Should playbook " + body.target() + " be allowed to act again?" : "Should playbook " + body.target() + " be stopped?",
         List.of(lift ? "The cause of the halt is understood and removed." : "Stopping it now is better than letting it continue."),
         caller.subject(), now);
     if (body.reviewer() != null && Boolean.TRUE.equals(body.reviewer().rehearsal())) {

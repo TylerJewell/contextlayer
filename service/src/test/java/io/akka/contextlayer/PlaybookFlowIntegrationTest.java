@@ -119,8 +119,37 @@ public class PlaybookFlowIntegrationTest extends LayerTestBase {
 
     assertThat(timeline(detail)).anyMatch(t -> t.contains("judged impact = BLOCKED"))
         .anyMatch(t -> t.contains("requested record.update: WOULD_DO"));
-    assertThat(detail.timeline()).extracting(CaseEndpoint.TimelineEntry::actor).contains("assistant claims-watch");
+    assertThat(detail.timeline()).extracting(CaseEndpoint.TimelineEntry::actor).contains("playbook claims-watch");
     assertThat(executor.calls).noneMatch(c -> c.startsWith(org));
+  }
+
+  @Test
+  public void anEditorCanCheckAPlaybookReadAReleaseBackAndSeeWhichFieldsItMayName() {
+    var org = newOrg();
+    var base = "/orgs/" + org + "/assistants/claims-watch";
+    post("alice", base, new ContextLayerEndpoint.CreateAssistantRequest("keep claims moving"),
+        ContextLayerEndpoint.AssistantResponse.class);
+
+    var looping = """
+        {"steps":[{"id":"a","type":"annotate","text":"one","next":"b"},
+                  {"id":"b","type":"annotate","text":"two","next":"a"}]}""";
+    assertThat(post("alice", base + "/releases/check", new ContextLayerEndpoint.AddReleaseRequest(looping),
+        ContextLayerEndpoint.CheckResponse.class).problems()).anyMatch(p -> p.contains("only move forward"));
+    assertThat(post("alice", base + "/releases/check", new ContextLayerEndpoint.AddReleaseRequest(PLAYBOOK),
+        ContextLayerEndpoint.CheckResponse.class).problems()).isEmpty();
+    assertThat(get(base, ContextLayerEndpoint.AssistantResponse.class).releases()).as("checking keeps nothing").isEmpty();
+
+    post("alice", base + "/releases", new ContextLayerEndpoint.AddReleaseRequest(PLAYBOOK), ContextLayerEndpoint.ReleaseResponse.class);
+    assertThat(get(base, ContextLayerEndpoint.AssistantResponse.class).releases())
+        .singleElement().satisfies(r -> assertThat(r.definition()).isEqualTo(PLAYBOOK));
+
+    connectBoth(org);
+    Awaitility.await().atMost(20, TimeUnit.SECONDS).untilAsserted(() ->
+        assertThat(get("/orgs/" + org + "/schema", ContextLayerEndpoint.SchemaResponse.class).types())
+            .anySatisfy(t -> {
+              assertThat(t.entityType()).isEqualTo("Claim");
+              assertThat(t.fields()).extracting(ContextLayerEndpoint.SchemaField::name).contains("daysOpen");
+            }));
   }
 
   @Test
@@ -223,7 +252,7 @@ public class PlaybookFlowIntegrationTest extends LayerTestBase {
     var org = newOrg();
     var assistant = assistant(org, AssistantStage.DRAFT);
 
-    var detail = caseFor(org, assistant, "the playbook was not run");
+    var detail = caseFor(org, assistant, "so it was not run");
 
     assertThat(timeline(detail)).noneMatch(t -> t.contains("judged impact"));
     assertThat(executor.calls).noneMatch(c -> c.startsWith(org));

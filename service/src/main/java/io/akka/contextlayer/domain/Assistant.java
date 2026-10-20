@@ -41,20 +41,20 @@ public record Assistant(
   // ---- command validation: each returns an error message, or empty when the command is allowed
 
   public Optional<String> validateCreate(String purpose, String owner) {
-    if (exists) return Optional.of("assistant already exists");
+    if (exists) return Optional.of("playbook already exists");
     if (purpose == null || purpose.isBlank()) return Optional.of("purpose is required");
     if (owner == null || owner.isBlank()) return Optional.of("an accountable owner is required");
     return Optional.empty();
   }
 
   public Optional<String> validateAddRelease(String definition) {
-    if (!exists) return Optional.of("assistant not found");
+    if (!exists) return Optional.of("playbook not found");
     if (definition == null || definition.isBlank()) return Optional.of("definition is required");
     return Optional.empty();
   }
 
   public Optional<String> validateApprove(String releaseId, String approver) {
-    if (!exists) return Optional.of("assistant not found");
+    if (!exists) return Optional.of("playbook not found");
     if (find(releaseId).isEmpty()) return Optional.of("release " + releaseId + " not found");
     if (!owner.equals(approver)) {
       return Optional.of("only the accountable owner can approve a release");
@@ -63,7 +63,7 @@ public record Assistant(
   }
 
   public Optional<String> validateStage(AssistantStage target, String actor) {
-    if (!exists) return Optional.of("assistant not found");
+    if (!exists) return Optional.of("playbook not found");
     if (!owner.equals(actor)) {
       return Optional.of("only the accountable owner can change the stage");
     }

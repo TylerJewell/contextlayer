@@ -101,7 +101,7 @@ class MonitorModal(ModalScreen[dict | None]):
             yield Input(value=self._return_fields[0] if self._return_fields else "", id="key")
             yield Label("Run every (minutes)")
             yield Input(value="15", id="every")
-            yield Label("Assistant that handles new cases (optional)")
+            yield Label("Playbook that handles new cases (optional)")
             yield Input(placeholder="claims-watch", id="assistant")
             yield Label("Route cases to")
             yield Input(placeholder="Claims Team B", id="route")

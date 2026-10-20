@@ -727,7 +727,7 @@ private Wire wire() {    return new Wire(httpClient);  }
         new ContextLayerEndpoint.ActionRequest("notify.log", "x"));
     awaitLedger(org, a, key, "DENIED");
     assertThat(get("/orgs/" + org + "/assistants/" + a + "/actions/" + key, as("reader", org, "viewer")).body().get("reason").asText())
-        .isEqualTo("assistant is halted");
+        .isEqualTo("playbook is halted");
 
     assertThat(post("/oversight/halts", as("rita", org, "reviewer"),
         Map.of("scope", "assistant", "target", a, "reason", "again")).status()).isEqualTo(409);
@@ -748,7 +748,7 @@ private Wire wire() {    return new Wire(httpClient);  }
         new ContextLayerEndpoint.ActionRequest("notify.log", "x"));
     awaitLedger(org, a, again, "SUCCEEDED");
     var evidence = awaitEvidence(org, Controls.ACTION_POLICY, 1).get("evidence");
-    assertThat(evidence).extracting(n -> n.get("reasonCode").asText()).contains("assistant is halted");
+    assertThat(evidence).extracting(n -> n.get("reasonCode").asText()).contains("playbook is halted");
   }
 
   @Test

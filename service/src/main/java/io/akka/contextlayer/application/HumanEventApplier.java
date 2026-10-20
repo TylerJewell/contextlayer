@@ -97,12 +97,12 @@ public class HumanEventApplier extends Consumer {
   private void applyHalt(HumanEvent event, String action, String by) {
     boolean halt = "halt".equals(event.detail().get("operation"));
     if (!"APPROVE".equals(action)) {
-      settle(event, "denied; the assistant is unchanged", null);
+      settle(event, "denied; the playbook is unchanged", null);
       return;
     }
     componentClient.forKeyValueEntity(HaltEntity.id(event.orgId(), event.assistantId())).method(HaltEntity::set)
         .invoke(new HaltEntity.Set(halt, by, event.reason(), event.id(), System.currentTimeMillis()));
-    settle(event, halt ? "the assistant is halted" : "the assistant is restarted", null);
+    settle(event, halt ? "the playbook is halted" : "the playbook is restarted", null);
   }
 
   private void settle(HumanEvent event, String applied, String failure) {

@@ -163,7 +163,7 @@ class GovernancePane(Pane):
                 self.run_worker(self._answer_question(question))
 
         self.app.push_screen(PromptModal("Ask about the controls", "What do you want to know?",
-                                         "can a person override the assistant, and who signed that off?"), done)
+                                         "can a person override the playbook, and who signed that off?"), done)
 
     async def _answer_question(self, question: str) -> None:
         try:

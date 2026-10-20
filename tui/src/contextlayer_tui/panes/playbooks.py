@@ -1,4 +1,4 @@
-"""Assistants: who is accountable, which release runs, and the road from draft to live."""
+"""Playbooks: who is accountable, which release runs, and the road from draft to live."""
 
 from __future__ import annotations
 
@@ -13,17 +13,20 @@ from textual.binding import Binding
 
 from ..api import ApiError
 from ..format import BAD, DIM, INFO, OK, WARN, badge, clip, dot
+from .. import playbook as pb
+from ..editor import PlaybookEditor
 from ..modals import ConfirmModal, PromptModal
 from .base import Pane
 
 STAGES = ["DRAFT", "SHADOW", "LIVE"]
 
 
-class AssistantsPane(Pane):
-    columns = ("", "Assistant", "Owner", "Stage", "Releases", "Purpose")
-    empty_text = "No assistants yet."
+class PlaybooksPane(Pane):
+    columns = ("", "Playbook", "Owner", "Stage", "Releases", "Purpose")
+    empty_text = "No playbooks yet."
     BINDINGS = [Binding("p", "move(1)", "Promote"), Binding("b", "move(-1)", "Step back"),
-                Binding("a", "approve", "Approve release"), Binding("h", "halt", "Halt or restart")]
+                Binding("a", "approve", "Approve release"), Binding("h", "halt", "Halt or restart"),
+                Binding("e", "edit", "Edit steps"), Binding("n", "new", "New playbook")]
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -81,11 +84,19 @@ class AssistantsPane(Pane):
                              f"[{OK}]approved[/]" if r["approved"] else f"[{WARN}]not approved[/]", r["approvedBy"] or "—")
 
         parts: list[RenderableType] = [head, sub, Text(), purpose, Text(), self.stepper(a["stage"]), Text(), releases]
+        newest = a["releases"][-1] if a["releases"] else None
+        if newest is not None:
+            steps = pb.parse(newest.get("definition"))
+            state = "running" if newest["releaseId"] == a.get("runningReleaseId") else (
+                "approved" if newest["approved"] else "waiting for its owner's approval")
+            parts += [Text(), Text.from_markup(f"[bold]Steps of release {newest['releaseId']}[/]  [{DIM}]{state}[/]"),
+                      pb.summary(steps), Text(), pb.draw(steps)]
         parts += [Text(), self.activity_report(a["stage"])]
         parts += [Text(), Text.from_markup(
             "[bold]p[/] promote   [bold]b[/] step back   [bold]a[/] approve the newest release   "
             "[bold]h[/] halt or restart   "
-            f"[{DIM}](only {a['owner']} may)[/]")]
+            f"[{DIM}](only {a['owner']} may)[/]"),
+            Text.from_markup("[bold]e[/] edit the steps as a new release   [bold]n[/] new playbook")]
         return Group(*parts)
 
     def activity_report(self, stage: str) -> RenderableType:
@@ -197,3 +208,50 @@ class AssistantsPane(Pane):
                             else f"{assistant_id} is halted.")
         self.show_detail()
         await self.reload()
+
+    # ---- editing
+
+    async def action_edit(self) -> None:
+        a = self.detail if self.detail and self.selected and self.detail["assistantId"] == self.selected["assistantId"] else None
+        if a is None:
+            return
+        newest = a["releases"][-1] if a["releases"] else None
+        await self._open_editor(a["assistantId"], pb.parse(newest.get("definition")) if newest else [],
+                                newest["releaseId"] if newest else "")
+
+    def action_new(self) -> None:
+        def named(playbook_id: str | None) -> None:
+            if playbook_id:
+                self.app.push_screen(PromptModal(f"New playbook {playbook_id}", "What is it for? One sentence."),
+                                     partial(purposed, playbook_id))
+
+        def purposed(playbook_id: str, purpose: str | None) -> None:
+            if purpose:
+                self.run_worker(self._create(playbook_id.strip().lower(), purpose))
+
+        self.app.push_screen(PromptModal("New playbook", "Its name (lowercase letters, digits and hyphens)",
+                                         placeholder="claims-watch"), named)
+
+    async def _create(self, playbook_id: str, purpose: str) -> None:
+        try:
+            await self.api.create_assistant(playbook_id, purpose)
+        except ApiError as error:
+            self.fail(error)
+            return
+        await self.reload()
+        await self._open_editor(playbook_id, [pb.new_step("annotate", "note-1", pb.END)], "")
+
+    async def _open_editor(self, playbook_id: str, steps: list[dict[str, Any]], based_on: str) -> None:
+        try:
+            schema = await self.api.schema()
+            connectors = await self.api.connectors()
+        except ApiError as error:
+            self.fail(error)
+            return
+        actions = {action["name"]: action["risk"] for c in connectors if c["mode"] != "INACTIVE" for action in c["actions"]}
+
+        def closed(release_id: str | None) -> None:
+            if release_id:
+                self.run_worker(self.reload())
+
+        self.app.push_screen(PlaybookEditor(playbook_id, steps, based_on, schema, actions), closed)

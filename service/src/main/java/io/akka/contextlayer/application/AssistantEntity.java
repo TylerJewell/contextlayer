@@ -71,7 +71,7 @@ public class AssistantEntity extends EventSourcedEntity<Assistant, AssistantEven
   }
 
   public ReadOnlyEffect<Assistant> get() {
-    if (!currentState().exists()) return effects().error("assistant not found");
+    if (!currentState().exists()) return effects().error("playbook not found");
     return effects().reply(currentState());
   }
 

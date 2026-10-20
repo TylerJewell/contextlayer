@@ -33,7 +33,7 @@ rows:
     applies_to: [deployer]
 
   - row_id: custom-cl0003
-    name: An assistant action above the autonomy limit needs a person's approval
+    name: A playbook action above the autonomy limit needs a person's approval
     mechanism: human
     lifecycle: preventative
     corpus_ref: aws-agentic-scoping.scope2-human-approval
@@ -89,11 +89,11 @@ rows:
       enforce_minimum: false
 
   - row_id: custom-cl0005
-    name: An assistant release and its stage changes are approved by its owner
+    name: A playbook release and its stage changes are approved by its owner
     mechanism: human
     lifecycle: preventative
     corpus_ref: aicpa-soc2.cc8-1.change-authorization
-    summary: A release becomes runnable, and an assistant changes stage, only on its owner's decision.
+    summary: A release becomes runnable, and a playbook changes stage, only on its owner's decision.
     proof_event: HumanDecisionRecorded
     boundary: STATE_TRANSITION
     applies_to: [deployer]
@@ -145,11 +145,11 @@ rows:
       enforce_minimum: false
 
   - row_id: custom-cl0007
-    name: Actions the assistant may never take are refused by policy
+    name: Actions a playbook may never take are refused by policy
     mechanism: gate
     lifecycle: preventative
     corpus_ref: aws-agentic-scoping.scope2-human-approval
-    summary: Action policy refuses actions classed never-by-assistant, and any action from an assistant not live.
+    summary: Action policy refuses actions classed never-by-assistant, and any action from a playbook that is not live.
     proof_event: ControlEvaluationRecorded
     boundary: WORKFLOW_STEP
     applies_to: [deployer]
@@ -187,11 +187,11 @@ rows:
     applies_to: [deployer]
 
   - row_id: custom-cl0011
-    name: An approver can halt an assistant at once
+    name: An approver can halt a playbook at once
     mechanism: human
     lifecycle: corrective
     corpus_ref: argus.jsp936.halt-provision-exercised
-    summary: One approver can stop an assistant; its actions are refused and its playbooks stop until it is restarted.
+    summary: One approver can stop a playbook; its actions are refused and its runs stop until it is restarted.
     proof_event: HumanDecisionRecorded
     boundary: STATE_TRANSITION
     applies_to: [deployer]
@@ -215,7 +215,7 @@ rows:
       enforce_minimum: false
 
   - row_id: custom-cl0012
-    name: A halted assistant is restarted only by two different approvers
+    name: A halted playbook is restarted only by two different approvers
     mechanism: human
     lifecycle: preventative
     corpus_ref: argus.jsp936.halt-provision-exercised

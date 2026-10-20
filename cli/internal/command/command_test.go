@@ -62,7 +62,7 @@ func TestAListShowsTheColumnsOfTheRowsTheServiceReturned(t *testing.T) {
 		"GET /v1/context/assistants": `{"items":[{"assistantId":"a1","purpose":"triage","owner":"alice","stage":"LIVE"}]}`,
 	})
 
-	out, _, err := execute(t, server, "assistants")
+	out, _, err := execute(t, server, "playbooks")
 
 	if err != nil {
 		t.Fatal(err)
@@ -88,7 +88,7 @@ func TestJSONOutputIsTheServiceBody(t *testing.T) {
 func TestARefusalIsOneSentenceOnStandardError(t *testing.T) {
 	server, _ := serve(t, map[string]string{"GET /v1/context/assistants": `!{"error":"requires permission context.read"}`})
 
-	out, errOut, err := execute(t, server, "assistants")
+	out, errOut, err := execute(t, server, "playbooks")
 
 	if err == nil || out != "" || strings.TrimSpace(errOut) != "error: requires permission context.read" {
 		t.Fatalf("out=%q err=%q error=%v", out, errOut, err)
@@ -425,6 +425,14 @@ func TestApprovalsStillNamesTheDecisionsCommand(t *testing.T) {
 	server, calls := serve(t, map[string]string{"GET /v1/context/oversight/events?state=pending": `{"events":[]}`})
 
 	if _, _, err := execute(t, server, "approvals", "list"); err != nil || len(*calls) != 1 {
+		t.Fatalf("got %v, calls %v", err, *calls)
+	}
+}
+
+func TestAssistantsStillNamesThePlaybooksCommand(t *testing.T) {
+	server, calls := serve(t, map[string]string{"GET /v1/context/assistants": `{"items":[]}`})
+
+	if _, _, err := execute(t, server, "assistants"); err != nil || len(*calls) != 1 {
 		t.Fatalf("got %v, calls %v", err, *calls)
 	}
 }

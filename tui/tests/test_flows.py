@@ -198,7 +198,7 @@ async def test_a_case_shows_its_evidence_and_the_story_of_what_happened(demo_app
         demo_app.action_goto("cases")
         await pilot.pause(0.5)
         text = detail(demo_app, "cases")
-        for expected in ("Evidence", "412,000", "What happened", "judged impact = BLOCKED", "assistant claims-watch"):
+        for expected in ("Evidence", "412,000", "What happened", "judged impact = BLOCKED", "playbook claims-watch"):
             assert expected in text
 
 
@@ -242,9 +242,9 @@ async def test_the_approval_says_what_is_asked_who_asked_and_what_the_control_ex
         demo_app.action_goto("decisions")
         await pilot.pause(0.3)
         text = detail(demo_app, "decisions")
-        for expected in ("Should assistant claims-watch be allowed", "It would send", "CL-889",
+        for expected in ("Should playbook claims-watch be allowed", "It would send", "CL-889",
                          "Requested by priya.k, who cannot decide it",
-                         "The payload is within what the assistant may change", "at least 10 seconds",
+                         "The payload is within what the playbook may change", "at least 10 seconds",
                          "a written reason", "approver"):
             assert expected in text
 
@@ -385,37 +385,37 @@ async def test_releasing_it_lets_someone_else_take_it(demo_app):
         assert str(table(demo_app, "decisions").get_row_at(0)[4]) == "—"
 
 
-# ---- assistants
+# ---- playbooks
 
 
 async def test_an_assistant_is_promoted_one_stage_at_a_time_and_going_live_asks_first(demo_app):
     async with demo_app.run_test(size=SIZE) as pilot:
         await pilot.pause()
-        demo_app.action_goto("assistants")
+        demo_app.action_goto("playbooks")
         await pilot.pause(0.5)
-        assert "SHADOW" in detail(demo_app, "assistants")
+        assert "SHADOW" in detail(demo_app, "playbooks")
         await pilot.press("p")
         await pilot.pause(0.3)
         assert "Put claims-watch live" in text_of(demo_app.screen.query_one(".dialog-title", Static))
         await pilot.press("n")
         await pilot.pause(0.3)
-        assert "SHADOW" in detail(demo_app, "assistants")
+        assert "SHADOW" in detail(demo_app, "playbooks")
 
         await pilot.press("p")
         await pilot.pause(0.3)
         await pilot.click("#yes")
         await give_reason(demo_app, pilot, "the shadow report looked right", settle=0.6)
-        assert "live" in detail(demo_app, "assistants")
+        assert "live" in detail(demo_app, "playbooks")
 
 
 async def test_going_live_without_an_approved_release_is_refused_and_the_refusal_is_shown(demo_app):
     async with demo_app.run_test(size=SIZE) as pilot:
         await pilot.pause()
-        demo_app.action_goto("assistants")
+        demo_app.action_goto("playbooks")
         await pilot.pause(0.3)
         await pilot.press("down")
         await pilot.pause(0.5)
-        assert "renewal-nudge" in detail(demo_app, "assistants")
+        assert "renewal-nudge" in detail(demo_app, "playbooks")
         await pilot.press("p")  # draft -> shadow is allowed: it has a release
         await give_reason(demo_app, pilot, "start recording", settle=0.4)
         await pilot.press("p")  # shadow -> live needs an approved release
@@ -423,27 +423,27 @@ async def test_going_live_without_an_approved_release_is_refused_and_the_refusal
         await pilot.click("#yes")
         await give_reason(demo_app, pilot, "go live")
         assert any("approved release" in n for n in notices(demo_app))
-        assert "SHADOW" in detail(demo_app, "assistants")
+        assert "SHADOW" in detail(demo_app, "playbooks")
 
 
 async def test_the_shadow_report_counts_what_it_would_have_done(demo_app):
     async with demo_app.run_test(size=SIZE) as pilot:
         await pilot.pause()
-        demo_app.action_goto("assistants")
+        demo_app.action_goto("playbooks")
         await pilot.pause(0.5)
-        text = detail(demo_app, "assistants")
+        text = detail(demo_app, "playbooks")
         assert "What it would have done" in text and "sends nothing" in text
 
 
 async def test_approving_the_newest_release_marks_it_approved(demo_app):
     async with demo_app.run_test(size=SIZE) as pilot:
         await pilot.pause()
-        demo_app.action_goto("assistants")
+        demo_app.action_goto("playbooks")
         await pilot.pause(0.5)
-        assert "not approved" in detail(demo_app, "assistants")
+        assert "not approved" in detail(demo_app, "playbooks")
         await pilot.press("a")
         await give_reason(demo_app, pilot, "the playbook only annotates", settle=0.6)
-        assert "not approved" not in detail(demo_app, "assistants")
+        assert "not approved" not in detail(demo_app, "playbooks")
 
 
 # ---- monitors and sources
@@ -611,18 +611,18 @@ async def test_someone_else_cannot_take_a_cluster_you_have_open(make_app, clock)
         assert any("claimed by another" in n for n in notices(app))
 
 
-# ---- halting an assistant
+# ---- halting a playbook
 
 
 async def test_an_approver_halts_an_assistant_at_once_and_it_shows_as_halted(demo_app):
     async with demo_app.run_test(size=SIZE) as pilot:
         await pilot.pause()
-        demo_app.action_goto("assistants")
+        demo_app.action_goto("playbooks")
         await pilot.pause(0.5)
-        assert "HALTED" not in detail(demo_app, "assistants")
+        assert "HALTED" not in detail(demo_app, "playbooks")
         await pilot.press("h")
         await give_reason(demo_app, pilot, "it is attaching to the wrong client", settle=0.8)
-        assert "HALTED" in detail(demo_app, "assistants")
+        assert "HALTED" in detail(demo_app, "playbooks")
         assert any("is halted" in n for n in notices(demo_app))
 
 
@@ -630,25 +630,25 @@ async def test_someone_who_cannot_approve_can_only_ask_for_a_halt(make_app):
     app = make_app("olivia", ["operator", "reviewer"])
     async with app.run_test(size=SIZE) as pilot:
         await pilot.pause()
-        app.action_goto("assistants")
+        app.action_goto("playbooks")
         await pilot.pause(0.5)
         await pilot.press("h")
         await give_reason(app, pilot, "something looks wrong", settle=0.8)
         assert any("takes effect when an approver agrees" in n for n in notices(app))
-        assert "HALTED" not in detail(app, "assistants")
+        assert "HALTED" not in detail(app, "playbooks")
 
 
 async def test_restarting_needs_a_second_approver(demo_app):
     async with demo_app.run_test(size=SIZE) as pilot:
         await pilot.pause()
-        demo_app.action_goto("assistants")
+        demo_app.action_goto("playbooks")
         await pilot.pause(0.5)
         await pilot.press("h")
         await give_reason(demo_app, pilot, "stop", settle=0.8)
         await pilot.press("h")
         await give_reason(demo_app, pilot, "cause fixed", settle=0.8)
         assert any("a second approver is needed" in n for n in notices(demo_app))
-        assert "HALTED" in detail(demo_app, "assistants")
+        assert "HALTED" in detail(demo_app, "playbooks")
 
         demo_app.api.subject = "carol"  # the second approver, at their own console
         demo_app.action_goto("decisions")
@@ -662,9 +662,9 @@ async def test_restarting_needs_a_second_approver(demo_app):
         await pilot.pause(0.4)
         await pilot.press("a")
         await give_reason(demo_app, pilot, "agreed")
-        demo_app.action_goto("assistants")
+        demo_app.action_goto("playbooks")
         await pilot.pause(0.8)
-        assert "HALTED" not in detail(demo_app, "assistants")
+        assert "HALTED" not in detail(demo_app, "playbooks")
 
 
 # ---- asking in words
@@ -824,7 +824,7 @@ async def test_a_question_about_the_controls_is_answered_with_the_facts_and_what
         demo_app.action_goto("governance")
         await pilot.pause(0.4)
         await pilot.press("q")
-        await give_reason(demo_app, pilot, "Can a person override the assistant, and who signed that off?")
+        await give_reason(demo_app, pilot, "Can a person override the playbook, and who signed that off?")
         text = detail(demo_app, "governance")
         for expected in ("Dana accepted it", "Facts", "accepted by dana", "Not shown by the records",
                          "Still needed: override procedure: none attached"):

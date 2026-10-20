@@ -2,8 +2,8 @@
 
 A console for the context layer service, built with [Textual](https://textual.textualize.io/). It
 shows what the service knows and lets a person do the things only a person should: say whether two
-records are one person, approve or reject what an assistant wants to do, close cases, and move an
-assistant from draft to shadow to live. Every decision asks for a reason and goes on the record with
+records are one person, approve or reject what a playbook wants to do, close cases, and move a
+playbook from draft to shadow to live. Every decision asks for a reason and goes on the record with
 your name and role, and a Governance tab shows whether the evidence says each control is working.
 
 ## Try it
@@ -39,13 +39,29 @@ That makes an unsigned token. A deployed service refuses it.
 | 3 | Ask | Ask across sources. `ctrl+r` runs it, `F2` watches it as a monitor. The report beside the answer shows how fresh each source was. |
 | 4 | Cases | What monitors found, the evidence, and the timeline. `r` resolve, `x` dismiss, `n` note, `m` the model call behind it and the runtime's verdicts on it. |
 | 5 | Decisions | Things that cannot happen until a person says yes or no: actions, releases, stages, connectors, halts. `a` opens one, and the next `a` decides it; `x` rejects, `e` escalates, `b` sends back, `r` releases. Deciding before the control's minimum review time asks first and is recorded as rushed. |
-| 6 | Assistants | Stage, releases, and what a shadow assistant would have done. `p` promote, `b` step back, `a` approve a release. |
+| 6 | Playbooks | Stage, releases, the steps of the newest release, and what a shadow playbook would have done. `p` promote, `b` step back, `a` approve a release, `e` edit the steps, `n` new playbook. |
 | 7 | Monitors | Questions that run on a schedule. `n` run now, `e` pause or resume. |
 | 8 | Governance | Each control, whether its evidence upholds it, and what proves it. `w` waive, `l` lift a waiver (admin). |
 | g | Glossary | Every term the console uses, in plain words, and why it matters. Needs no service. |
 
 `F5` refreshes everything. Each tab also reloads when you switch to it. A background refresh runs every
 15 seconds and only changes the banner if the service goes away.
+
+## The playbook editor
+
+`e` on the Playbooks tab opens the newest release's steps; `n` starts a new playbook. The steps are drawn as boxes
+from top to bottom, and the form beside them edits the selected one:
+
+| Step | What it does |
+|---|---|
+| Judge | A model picks one of the labels, seeing only the fields named |
+| Choose | Goes to a step by the label a Judge step kept |
+| Act | Asks to change something in a source; the list offers what live connectors allow, with each action's risk |
+| Note | Writes on the case timeline |
+
+`PgUp`/`PgDn` move between steps, `ctrl+n` adds one after the selected step, `ctrl+d` deletes it (steps that went to
+it go where it went), and `ctrl+s` saves. Every edit is checked by the service as you type, and what it would refuse is
+listed at the bottom. Saving adds a release; it runs only once the playbook's owner approves it.
 
 ## The question language
 
@@ -65,7 +81,7 @@ Start the service with local sources allowed and a development credential, then 
     uv run python scripts/live_demo.py        # leave running; it serves two pretend sources
     uv run contextlayer-tui --org demo --user dan.m --roles operator,reviewer,approver
 
-Without `OPENAI_API_KEY` on the service, the assistant's model step fails and the case timeline says so.
+Without `GOOGLE_AI_GEMINI_API_KEY` on the service, the playbook's judge step fails and the case timeline says so.
 
 ## Tests
 

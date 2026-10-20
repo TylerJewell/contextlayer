@@ -93,8 +93,8 @@ public class PlaybookWorkflow extends Workflow<PlaybookWorkflow.Run> {
         .method(AssistantEntity::get).invoke();
     var release = assistant.runnableRelease();
     if (release.isEmpty()) {
-      note(run, file.assistantId(), "assistant " + file.assistantId() + " is " + assistant.stage()
-          + " with no release it may run; the playbook was not run");
+      note(run, file.assistantId(), "playbook " + file.assistantId() + " is " + assistant.stage()
+          + " with no release it may run, so it was not run");
       return stepEffects().updateState(run.withPhase("NOT_RUNNABLE")).thenEnd();
     }
 
@@ -119,7 +119,7 @@ public class PlaybookWorkflow extends Workflow<PlaybookWorkflow.Run> {
       return stepEffects().updateState(run.withPhase("DONE")).thenEnd();
     }
     if (HaltEntity.isHalted(componentClient, run.orgId(), run.assistantId())) {
-      note(run, run.assistantId(), "assistant " + run.assistantId() + " is halted; the playbook stopped before step " + run.current());
+      note(run, run.assistantId(), "playbook " + run.assistantId() + " is halted; it stopped before step " + run.current());
       return stepEffects().updateState(run.withPhase("HALTED")).thenEnd();
     }
     var playbook = Playbook.parse(run.definition());
@@ -208,7 +208,7 @@ public class PlaybookWorkflow extends Workflow<PlaybookWorkflow.Run> {
   private void note(Run run, String assistantId, String text) {
     try {
       componentClient.forEventSourcedEntity(run.caseId()).method(CaseEntity::annotate)
-          .invoke(new CaseEntity.Annotate("assistant " + assistantId, text, System.currentTimeMillis()));
+          .invoke(new CaseEntity.Annotate("playbook " + assistantId, text, System.currentTimeMillis()));
     } catch (RuntimeException e) {
       // intentionally ignored: see above
     }

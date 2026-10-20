@@ -58,7 +58,7 @@ class SourcesPane(Pane):
             parts += [Text(), Text.from_markup(f"[{WARN}]Warnings[/]")]
             parts += [Text.from_markup(f"  [{WARN}]▲[/] {e}: {clip(w, 90)}") for e, w in warnings]
         if c["actions"]:
-            actions = Table(title="What assistants may ask it to do", title_justify="left", expand=True, box=None)
+            actions = Table(title="What playbooks may ask it to do", title_justify="left", expand=True, box=None)
             actions.add_column("Action")
             actions.add_column("How")
             for a in c["actions"]:
