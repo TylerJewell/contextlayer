@@ -1,0 +1,21 @@
+    <path class="edge" d="M 452 112 V 144 Q 452 152 444 152 H 368 Q 360 152 360 160 V 188" marker-end="url(#contextlayer-a)"/>
+    <path class="edge" d="M 508 112 V 144 Q 508 152 516 152 H 592 Q 600 152 600 160 V 188" marker-end="url(#contextlayer-a)"/>
+    <line class="edge" x1="120" y1="112" x2="120" y2="188" marker-end="url(#contextlayer-a)"/>
+    <line class="edge async" x1="840" y1="112" x2="840" y2="188" marker-end="url(#contextlayer-a)"/>
+    <line class="edge evt" x1="120" y1="240" x2="120" y2="316" marker-end="url(#contextlayer-a-evt)"/>
+    <line class="edge evt" x1="600" y1="240" x2="600" y2="316" marker-end="url(#contextlayer-a-evt)"/>
+    <text class="band" x="24" y="48">Edge</text>
+    <line x1="24" y1="56" x2="956" y2="56" stroke="#1C1C1C" stroke-width="1"/>
+    <text class="band" x="24" y="176">Domain</text>
+    <line x1="24" y1="184" x2="956" y2="184" stroke="#1C1C1C" stroke-width="1"/>
+    <text class="band" x="24" y="304">Read model</text>
+    <line x1="24" y1="312" x2="956" y2="312" stroke="#1C1C1C" stroke-width="1"/>
+    <g class="n-ep"><rect class="box" x="40" y="64" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="52" y="81">HTTP ENDPOINT</text><text class="nn" x="52" y="100">ContextLayerEndpoint</text></g>
+    <g class="n-ep"><rect class="box" x="400" y="64" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="412" y="81">HTTP ENDPOINT</text><text class="nn" x="412" y="100">GovernanceEndpoint</text></g>
+    <g class="n-ep"><rect class="box" x="760" y="64" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="772" y="81">HTTP ENDPOINT</text><text class="nn" x="772" y="100">StreamEndpoint</text></g>
+    <g class="n-ese"><rect class="box" x="40" y="192" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="52" y="209">EVENT SOURCED ENTITY</text><text class="nn" x="52" y="228">ConnectorPackEntity</text></g>
+    <g class="n-ese"><rect class="box" x="280" y="192" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="292" y="209">EVENT SOURCED ENTITY</text><text class="nn" x="292" y="228">ControlClaimsEntity</text></g>
+    <g class="n-ese"><rect class="box" x="520" y="192" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="532" y="209">EVENT SOURCED ENTITY</text><text class="nn" x="532" y="228">EvidenceEntity</text></g>
+    <g class="n-kve"><rect class="box" x="760" y="192" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="772" y="209">KEY VALUE ENTITY</text><text class="nn" x="772" y="228">ChangeFeedEntity</text></g>
+    <g class="n-view"><rect class="box" x="40" y="320" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="52" y="337">VIEW</text><text class="nn" x="52" y="356">ConnectorPackView</text></g>
+    <g class="n-view"><rect class="box" x="520" y="320" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="532" y="337">VIEW</text><text class="nn" x="532" y="356">EvidenceView</text></g>

@@ -1,0 +1,48 @@
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#F5C518"></span><span class="sec-title">Evidence chain</span><span class="sec-hint">Who writes evidence and how each record is chained; no other diagram shows the writers or the chain</span></summary>
+  <div class="sec-body">
+  <svg class="cg" viewBox="0 0 980 548" width="100%" role="img"
+       aria-labelledby="contextlayer-chain-title contextlayer-chain-desc"
+       font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+    <title id="contextlayer-chain-title">Evidence is recorded, projected and chained</title>
+    <desc id="contextlayer-chain-desc">Two workflows and a consumer record evidence; each record is projected into a view and chained by a consumer that writes the chain head and a link.</desc>
+    <defs>
+      <marker id="contextlayer-chain-a" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#8a8a8a"/>
+      </marker>
+      <marker id="contextlayer-chain-a-evt" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#F5C518"/>
+      </marker>
+    </defs>
+    <path class="edge" d="M 200 112 V 144 Q 200 152 208 152 H 432 Q 440 152 440 160 V 188" marker-end="url(#contextlayer-chain-a)"/>
+    <line class="edge" x1="480" y1="112" x2="480" y2="188" marker-end="url(#contextlayer-chain-a)"/>
+    <path class="edge" d="M 760 112 V 144 Q 760 152 752 152 H 528 Q 520 152 520 160 V 188" marker-end="url(#contextlayer-chain-a)"/>
+    <path class="edge evt" d="M 452 240 V 272 Q 452 280 444 280 H 288 Q 280 280 280 288 V 316" marker-end="url(#contextlayer-chain-a-evt)"/>
+    <path class="edge evt" d="M 508 240 V 272 Q 508 280 516 280 H 672 Q 680 280 680 288 V 316" marker-end="url(#contextlayer-chain-a-evt)"/>
+    <path class="edge" d="M 252 368 V 400 Q 252 408 244 408 H 128 Q 120 408 120 416 V 444" marker-end="url(#contextlayer-chain-a)"/>
+    <path class="edge" d="M 308 368 V 400 Q 308 408 316 408 H 432 Q 440 408 440 416 V 444" marker-end="url(#contextlayer-chain-a)"/>
+    <text class="band" x="24" y="48">Writers</text>
+    <line x1="24" y1="56" x2="956" y2="56" stroke="#1C1C1C" stroke-width="1"/>
+    <text class="band" x="24" y="176">Record</text>
+    <line x1="24" y1="184" x2="956" y2="184" stroke="#1C1C1C" stroke-width="1"/>
+    <text class="band" x="24" y="304">Projection and chaining</text>
+    <line x1="24" y1="312" x2="956" y2="312" stroke="#1C1C1C" stroke-width="1"/>
+    <text class="band" x="24" y="432">Chain</text>
+    <line x1="24" y1="440" x2="956" y2="440" stroke="#1C1C1C" stroke-width="1"/>
+    <g class="n-wf"><rect class="box" x="120" y="64" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="132" y="81">WORKFLOW</text><text class="nn" x="132" y="100">ActionWorkflow</text></g>
+    <g class="n-wf"><rect class="box" x="400" y="64" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="412" y="81">WORKFLOW</text><text class="nn" x="412" y="100">PlaybookWorkflow</text></g>
+    <g class="n-con"><rect class="box" x="680" y="64" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="692" y="81">CONSUMER</text><text class="nn" x="692" y="100">HumanEvidenceConsumer</text></g>
+    <g class="n-ese"><rect class="box" x="400" y="192" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="412" y="209">EVENT SOURCED ENTITY</text><text class="nn" x="412" y="228">EvidenceEntity</text></g>
+    <g class="n-con"><rect class="box" x="200" y="320" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="212" y="337">CONSUMER</text><text class="nn" x="212" y="356">IntegrityConsumer</text></g>
+    <g class="n-view"><rect class="box" x="600" y="320" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="612" y="337">VIEW</text><text class="nn" x="612" y="356">EvidenceView</text></g>
+    <g class="n-ese"><rect class="box" x="40" y="448" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="52" y="465">EVENT SOURCED ENTITY</text><text class="nn" x="52" y="484">IntegrityChainEntity</text></g>
+    <g class="n-ese"><rect class="box" x="360" y="448" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="372" y="465">EVENT SOURCED ENTITY</text><text class="nn" x="372" y="484">ChainLinkEntity</text></g>
+  </svg>
+  <div class="legend">
+    <div class="legend-item"><span class="legend-bar" style="background:#F5C518"></span>Event Sourced Entity</div>
+    <div class="legend-item"><span class="legend-bar" style="background:#A855F7"></span>View</div>
+    <div class="legend-item"><span class="legend-bar" style="background:#7EC8E3"></span>Workflow</div>
+    <div class="legend-item"><span class="legend-bar" style="background:#8a8a8a"></span>Consumer</div>
+  </div>
+  </div>
+</details>
