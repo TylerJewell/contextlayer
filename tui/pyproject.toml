@@ -1,0 +1,43 @@
+[project]
+name = "contextlayer-tui"
+version = "0.1.0"
+description = "A console UI for the context layer service"
+readme = "README.md"
+authors = [
+    { name = "Tyler Jewell", email = "tylerjewell@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "httpx>=0.28.1",
+    "textual>=8.2.8",
+]
+
+[project.scripts]
+contextlayer-tui = "contextlayer_tui.__main__:main"
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "resvg-py>=0.5.0",
+    "ruff>=0.17.1",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 130
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/contextlayer_tui/demo.py" = ["E501"]
+"scripts/live_demo.py" = ["E501"]

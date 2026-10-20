@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.akka</groupId>
+        <artifactId>akka-javasdk-parent</artifactId>
+        <version>3.7.0</version>
+    </parent>
+    <groupId>io.akka</groupId>
+    <artifactId>contextlayer-akka</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+    <name>contextlayer-akka</name>
+
+    <dependencies>
+        <!-- Bolt driver for the entity store. Justification: docs/PLAN.md. -->
+        <dependency>
+            <groupId>org.neo4j.driver</groupId>
+            <artifactId>neo4j-java-driver</artifactId>
+            <version>5.28.4</version>
+        </dependency>
+        <!-- Reads governance/controls.yaml. Same Jackson release as the SDK's. Justification: docs/PLAN.md. -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-yaml</artifactId>
+            <version>2.22.3</version>
+        </dependency>
+        <!-- Platform authorization shared by the system services. -->
+        <dependency>
+            <groupId>io.akka</groupId>
+            <artifactId>service-auth</artifactId>
+            <version>0.1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <version>4.1.0</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- The test Neo4j container's password (see README). Without it the service's own startup, which
+                 the test kit runs too, fails to log in, and repeated failures lock the account for a few seconds. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <environmentVariables>
+                        <NEO4J_PASSWORD>localdevpass123</NEO4J_PASSWORD>
+                    </environmentVariables>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

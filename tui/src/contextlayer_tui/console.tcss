@@ -1,0 +1,143 @@
+Screen {
+    background: $surface;
+}
+
+#banner {
+    height: 3;
+    padding: 1 2;
+    background: $panel;
+    color: $text;
+}
+
+TabbedContent {
+    height: 1fr;
+}
+
+TabPane {
+    padding: 0;
+}
+
+.split {
+    height: 1fr;
+}
+
+.list {
+    width: 52%;
+    border: round $primary-darken-1;
+    padding: 0 1;
+}
+
+.detail {
+    width: 48%;
+    border: round $secondary;
+    padding: 1 2;
+}
+
+DataTable {
+    height: 1fr;
+}
+
+.empty {
+    height: auto;
+    padding: 1 2;
+}
+
+Select {
+    margin-bottom: 1;
+}
+
+/* Ask */
+
+.ask-top {
+    height: 19;
+}
+
+.ask-form {
+    width: 58%;
+    padding: 0 1;
+}
+
+.hint {
+    color: $text-muted;
+    height: 2;
+    padding-bottom: 1;
+}
+
+.ask-row {
+    height: 1;
+    margin-bottom: 1;
+}
+
+.row-label {
+    width: 11;
+    color: $text-muted;
+}
+
+.ask-row Input {
+    width: 1fr;
+}
+
+.ask-row Input.short {
+    width: 8;
+}
+
+.ask-row Button {
+    margin-left: 2;
+}
+
+.ask-report {
+    width: 42%;
+    border: round $secondary;
+    padding: 0 2;
+}
+
+.summary {
+    height: auto;
+    padding: 1 2 0 2;
+}
+
+.problem {
+    color: $error;
+    height: auto;
+    padding: 0 1;
+}
+
+/* Dialogs */
+
+ModalScreen {
+    align: center middle;
+    background: $background 70%;
+}
+
+.dialog {
+    width: 64;
+    max-width: 90%;
+    height: auto;
+    padding: 1 2;
+    border: round $primary;
+    background: $surface;
+}
+
+.dialog.wide {
+    width: 84;
+}
+
+.dialog-title {
+    text-style: bold;
+    color: $primary;
+    padding-bottom: 1;
+}
+
+.dialog-body {
+    padding-bottom: 1;
+}
+
+.dialog-buttons {
+    height: 3;
+    align-horizontal: right;
+    margin-top: 1;
+}
+
+.dialog-buttons Button {
+    margin-left: 2;
+}
