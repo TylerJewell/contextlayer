@@ -274,7 +274,7 @@ public class GovernanceEndpoint extends PrincipalEndpoint {
       }
     }
     return new ContractView(signed.present(), signed.intact(), signed.problems(), signed.digest(), signed.revision(),
-        signed.systemId(), signed.corpusVersion(), signed.createdAt(), signed.signOffRole(), signed.signedOffBy(),
+        signed.systemId(), signed.corpusVersion(), signed.createdAt(), signed.signOffRole(), signed.signedBy(),
         List.copyOf(changed), List.copyOf(unsigned), signed.notRunning(catalog));
   }
 

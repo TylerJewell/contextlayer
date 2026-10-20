@@ -1,2 +1,2 @@
-# The signed control contract is hashed and signed byte for byte; never convert its line endings.
-service/src/main/resources/governance/contract/** -text
+# Signed bundles are hashed and signed byte for byte; never convert their line endings.
+service/governance/signed/** -text

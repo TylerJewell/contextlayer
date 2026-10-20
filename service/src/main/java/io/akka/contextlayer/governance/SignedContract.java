@@ -3,59 +3,68 @@ package io.akka.contextlayer.governance;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyFactory;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.security.cert.CertificateFactory;
-import java.security.cert.X509Certificate;
+import java.security.Signature;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.TreeMap;
 
 /**
- * The Governance Control Contract packaged with the service: the control catalog as signed off by the risk team and
- * signed by the publisher, kept as an OCI layout in {@code governance/contract/} and made by the {@code contract} tool.
+ * The system's bundle in force: its controls as decided and signed in the Akka local console, kept as an OCI layout in
+ * {@code governance/signed/} (the console's local profile of the Governance Control Contract, ADR-015). The newest
+ * bundle is in force.
  *
- * <p>The service checks what arithmetic can: every part hashes to the digest the manifest declares, and each signed row
- * is compared with the row the service runs. It does not verify the signatures; that needs the trust a verifier is
- * given and the governance-contract library, which the {@code contract} tool's {@code verify} applies. A contract that
- * was edited after signing fails that check, not this one.
+ * <p>The service checks the bundle in force as the console does: every part hashes to the digest its manifest
+ * declares, it has the five parts in their order, and each sign-off is a valid Ed25519 signature over its section. The
+ * key is the one the sign-off carries; nothing here says whose it is ({@code trust: "local"}), which the console's
+ * profile leaves to product work. It then compares each signed control with the one the service runs.
  *
- * @param problems why the layout could not be read or does not hash as declared; empty when it is intact
- * @param rows each signed row, as the catalog writes it, by row id
+ * @param problems why there is no usable bundle in force, or what is wrong with it; empty when it checks out
+ * @param signedBy who signed it off, as each sign-off names them
+ * @param rows each signed control by row id, as the controls draft writes it: what the service's row is compared with
  */
 public record SignedContract(
     boolean present, List<String> problems, String digest, long revision, String systemId, String corpusVersion,
-    String createdAt, String signOffRole, String signedOffBy, Map<String, JsonNode> rows) {
+    String createdAt, String signOffRole, String signedBy, Map<String, JsonNode> rows) {
 
-  /** Where a running control stands against the signed contract. */
+  /** Where a running control stands against the bundle in force. */
   public enum Standing {
-    /** Signed, and the service runs it exactly as signed. */
+    /** In the bundle in force, and the service runs it exactly as signed. */
     SIGNED,
-    /** Signed, but the service runs a different definition. */
+    /** In the bundle in force, but the service runs a different definition. */
     CHANGED,
-    /** The service runs it, but no signed contract holds it. */
+    /** The service runs it, but the bundle in force does not hold it. */
     UNSIGNED
   }
 
-  static final String LAYOUT = "governance/contract/";
-  private static final String REF_NAME = "org.opencontainers.image.ref.name";
+  static final String LAYOUT = "governance/signed/";
+  private static final String GOV_VERSION = "io.akka.gcc.gov-version";
   private static final String TITLE = "org.opencontainers.image.title";
-  private static final String TAG = "current";
+  private static final String CONTRACT = "application/vnd.akka.gcc.contract.v1+json";
+  private static final List<String> PARTS = List.of(
+      "contract/matrix.json", "contract/enterprise.json", "contract/derivation.json", "signoffs/matrix.jws", "signoffs/enterprise.jws");
+  /** The fields a signed row carries beside its definition; the rest of a draft row is its definition. */
+  private static final List<String> ROW_FIELDS = List.of(
+      "row_id", "name", "mechanism", "lifecycle", "provenance", "corpus_ref", "rationale", "summary", "applies_to");
+  /** An Ed25519 public key as X.509 SubjectPublicKeyInfo is this prefix and then the 32 key bytes. */
+  private static final byte[] ED25519_SPKI = HexFormat.of().parseHex("302a300506032b6570032100");
   private static final ObjectMapper JSON = new ObjectMapper();
 
   private static final class Holder {
     static final SignedContract CURRENT = load(name -> SignedContract.class.getClassLoader().getResourceAsStream(LAYOUT + name));
   }
 
-  /** The contract packaged with the service, read once. */
+  /** The bundle in force packaged with the service, read once. */
   public static SignedContract current() {
     return Holder.CURRENT;
   }
@@ -67,7 +76,7 @@ public record SignedContract(
   public Standing standingOf(ControlCatalog catalog, String rowId) {
     var signed = intact() ? rows.get(rowId) : null;
     if (signed == null) return Standing.UNSIGNED;
-    return catalog.row(rowId).map(running -> running.equals(signed)).orElse(false) ? Standing.SIGNED : Standing.CHANGED;
+    return catalog.row(rowId).map(running -> withoutNulls(running).equals(signed)).orElse(false) ? Standing.SIGNED : Standing.CHANGED;
   }
 
   /** Signed controls the service does not run at all. */
@@ -84,60 +93,118 @@ public record SignedContract(
     var problems = new ArrayList<String>();
     try {
       var index = read(files, "index.json");
-      if (index == null) return absent("no signed contract is packaged with the service");
-      String digest = null;
+      if (index == null) return absent("no bundle has been signed for this system yet");
+      JsonNode inForce = null;
       for (var entry : index.path("manifests")) {
-        if (TAG.equals(entry.path("annotations").path(REF_NAME).asText(null))) digest = entry.path("digest").asText();
+        var version = entry.path("annotations").path(GOV_VERSION).asLong(0);
+        if (version > 0 && (inForce == null || version > inForce.path("annotations").path(GOV_VERSION).asLong())) inForce = entry;
       }
-      if (digest == null) return absent("the contract layout has no manifest tagged " + TAG);
+      if (inForce == null) return absent("governance/signed/ holds no bundle");
+      long version = inForce.path("annotations").path(GOV_VERSION).asLong();
+      var digest = inForce.path("digest").asText();
 
       var manifestBytes = blob(files, digest, problems);
       if (manifestBytes == null) return broken(problems);
       var manifest = JSON.readTree(manifestBytes);
-      var annotations = manifest.path("annotations");
-      blob(files, manifest.path("config").path("digest").asText(), problems);
+      if (!CONTRACT.equals(manifest.path("artifactType").asText())) problems.add("bundle v" + version + " is not a controls contract");
+      var configBytes = blob(files, manifest.path("config").path("digest").asText(), problems);
+      var config = configBytes == null ? JSON.createObjectNode() : JSON.readTree(configBytes);
+      if (config.path("gov_version").asLong(-1) != version) problems.add("bundle v" + version + " is numbered differently inside");
 
-      Map<String, JsonNode> rows = new TreeMap<>();
-      String role = "";
-      String signer = "";
-      for (var layer : manifest.path("layers")) {
-        var bytes = blob(files, layer.path("digest").asText(), problems);
-        if (bytes == null) continue;
+      var layers = manifest.path("layers");
+      var parts = new TreeMap<String, byte[]>();
+      var digests = new TreeMap<String, String>();
+      for (int i = 0; i < PARTS.size(); i++) {
+        var layer = layers.path(i);
         var title = layer.path("annotations").path(TITLE).asText("");
-        if (title.equals("contract/matrix.json") || title.equals("contract/enterprise.json")) {
-          for (var row : JSON.readTree(bytes).path("rows")) {
-            var asWritten = (ObjectNode) row.deepCopy();
-            var id = asWritten.remove("id").asText();
-            asWritten.remove("provenance");
-            var ordered = JSON.createObjectNode().put("row_id", id);
-            ordered.setAll(asWritten);
-            rows.put(id, ordered);
-          }
-        } else if (title.startsWith("signoffs/")) {
-          role = layer.path("annotations").path("io.akka.gcc.signoff-role").asText("");
-          signer = signerOf(new String(bytes, StandardCharsets.UTF_8)).orElse("");
+        if (!PARTS.get(i).equals(title)) {
+          problems.add("part " + (i + 1) + " of bundle v" + version + " should be " + PARTS.get(i));
+          continue;
+        }
+        var bytes = blob(files, layer.path("digest").asText(), problems);
+        if (bytes != null) {
+          parts.put(title, bytes);
+          digests.put(title, layer.path("digest").asText());
+        }
+      }
+      if (layers.size() != PARTS.size()) problems.add("bundle v" + version + " has " + layers.size() + " parts, not " + PARTS.size());
+      if (!problems.isEmpty()) return broken(problems);
+
+      var roles = new LinkedHashSet<String>();
+      var signers = new LinkedHashSet<String>();
+      for (var section : List.of("matrix", "enterprise")) {
+        var jws = JSON.readTree(parts.get("signoffs/" + section + ".jws"));
+        var header = verify(jws, section, parts.get("contract/" + section + ".json"), digests.get("contract/" + section + ".json"), problems);
+        if (header != null) {
+          roles.add(header.path("io.akka.gcc.signer").path("role").asText(""));
+          signers.add(header.path("io.akka.gcc.signer").path("subject").asText(""));
         }
       }
       if (!problems.isEmpty()) return broken(problems);
-      return new SignedContract(true, List.of(), digest, annotations.path("io.akka.gcc.contract-revision").asLong(),
-          annotations.path("io.akka.gcc.system-id").asText(""), annotations.path("io.akka.gcc.corpus-version").asText(""),
-          annotations.path("org.opencontainers.image.created").asText(""), role, signer, Map.copyOf(rows));
+
+      Map<String, JsonNode> rows = new TreeMap<>();
+      for (var section : List.of("contract/matrix.json", "contract/enterprise.json")) {
+        for (var row : JSON.readTree(parts.get(section)).path("rows")) rows.put(row.path("row_id").asText(), asWritten(row));
+      }
+      return new SignedContract(true, List.of(), digest, version, config.path("system_id").asText(""),
+          config.path("corpus_version").asText(""), config.path("created_at").asText(""),
+          String.join(", ", roles), String.join(", ", signers), Map.copyOf(rows));
     } catch (IOException | RuntimeException e) {
-      problems.add("the contract layout cannot be read: " + e.getMessage());
+      problems.add("governance/signed/ cannot be read: " + e.getMessage());
       return broken(problems);
     }
   }
 
-  /** The subject of the certificate a sign-off carries in its JWS header, which names who signed off. */
-  static Optional<String> signerOf(String jws) {
+  /** The sign-off's protected header when its signature verifies over the section, or null with the problem recorded. */
+  private static JsonNode verify(JsonNode jws, String section, byte[] payload, String payloadDigest, List<String> problems) {
     try {
-      var header = JSON.readTree(Base64.getUrlDecoder().decode(jws.substring(0, jws.indexOf('.'))));
-      var der = Base64.getDecoder().decode(header.path("x5c").path(0).asText());
-      var certificate = (X509Certificate) CertificateFactory.getInstance("X.509").generateCertificate(new ByteArrayInputStream(der));
-      return Optional.of(certificate.getSubjectX500Principal().getName());
+      var protectedPart = jws.path("protected").asText();
+      var header = JSON.readTree(Base64.getUrlDecoder().decode(protectedPart));
+      var jwk = header.path("jwk");
+      if (!"EdDSA".equals(header.path("alg").asText()) || !"OKP".equals(jwk.path("kty").asText())
+          || !"Ed25519".equals(jwk.path("crv").asText())) {
+        problems.add("the " + section + " sign-off is not an Ed25519 signature");
+        return null;
+      }
+      if (!section.equals(header.path("io.akka.gcc.section").asText())
+          || !payloadDigest.equals(header.path("io.akka.gcc.section-digest").asText())) {
+        problems.add("the " + section + " sign-off is not over this bundle's " + section);
+        return null;
+      }
+      var raw = Base64.getUrlDecoder().decode(jwk.path("x").asText());
+      var spki = new byte[ED25519_SPKI.length + raw.length];
+      System.arraycopy(ED25519_SPKI, 0, spki, 0, ED25519_SPKI.length);
+      System.arraycopy(raw, 0, spki, ED25519_SPKI.length, raw.length);
+      var verifier = Signature.getInstance("Ed25519");
+      verifier.initVerify(KeyFactory.getInstance("Ed25519").generatePublic(new X509EncodedKeySpec(spki)));
+      verifier.update((protectedPart + "." + Base64.getUrlEncoder().withoutPadding().encodeToString(payload))
+          .getBytes(StandardCharsets.US_ASCII));
+      if (!verifier.verify(Base64.getUrlDecoder().decode(jws.path("signature").asText()))) {
+        problems.add("the " + section + " sign-off does not verify");
+        return null;
+      }
+      return header;
     } catch (Exception e) {
-      return Optional.empty();
+      problems.add("the " + section + " sign-off cannot be read: " + e.getMessage());
+      return null;
     }
+  }
+
+  /** A signed row as the controls draft writes it: its fields, then its definition's fields beside them. */
+  static JsonNode asWritten(JsonNode signed) {
+    var out = JSON.createObjectNode();
+    for (var field : ROW_FIELDS) if (signed.has(field)) out.set(field, signed.get(field));
+    if (signed.path("definition").isObject()) out.setAll((ObjectNode) signed.get("definition").deepCopy());
+    return withoutNulls(out);
+  }
+
+  /** A signed row names every field, null when the draft lacks it; an absent field and a null one are the same. */
+  private static JsonNode withoutNulls(JsonNode row) {
+    var out = JSON.createObjectNode();
+    row.fields().forEachRemaining(e -> {
+      if (!e.getValue().isNull()) out.set(e.getKey(), e.getValue());
+    });
+    return out;
   }
 
   private static JsonNode read(Files files, String name) throws IOException {
@@ -166,7 +233,7 @@ public record SignedContract(
     }
   }
 
-  private static String sha256(byte[] bytes) {
+  static String sha256(byte[] bytes) {
     try {
       return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
     } catch (NoSuchAlgorithmException e) {

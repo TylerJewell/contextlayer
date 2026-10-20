@@ -15,6 +15,20 @@ public class ControlCatalogTest {
   }
 
   @Test
+  public void decidingAControlInTheConsoleDoesNotChangeTheCatalog() throws Exception {
+    String yaml;
+    try (var in = getClass().getClassLoader().getResourceAsStream(ControlCatalog.RESOURCE)) {
+      yaml = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+    }
+    var decided = yaml.replaceFirst("(\\R  - row_id: custom-cl0001\\R)", "$1    sign_off:\n      decision: approve\n"
+        + "      reviewer: tylerjewell@gmail.com\n      at: '2026-10-20T12:00:00Z'\n      rationale: in scope\n");
+    assertThat(decided).isNotEqualTo(yaml);
+
+    assertThat(parse(decided).digest()).isEqualTo(parse(yaml).digest());
+    assertThat(parse(decided).systemId()).isEqualTo("contextlayer");
+  }
+
+  @Test
   public void everyControlIdTheCodeNamesIsInTheCatalog() throws Exception {
     var catalog = ControlCatalog.load();
     var named = Arrays.stream(Controls.class.getDeclaredFields())

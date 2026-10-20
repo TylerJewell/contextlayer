@@ -35,7 +35,13 @@ public final class ControlCatalog {
   private final List<ControlDef> controls;
   private final String digest;
 
-  /** Each row as written in the catalog, by row id: what a signed contract's row is compared with. */
+  /**
+   * The console's bookkeeping on a draft row: who decided it and when. Deciding a control does not change what it is,
+   * so these are not part of a row's definition or of the catalog digest.
+   */
+  static final List<String> DRAFT_ONLY = List.of("sign_off", "sign_off_history", "updated_at");
+
+  /** Each row as written in the catalog, less the console's bookkeeping, by row id: what a signed row is compared with. */
   private final Map<String, JsonNode> rows;
 
   private ControlCatalog(String systemId, List<ControlDef> controls, String digest, Map<String, JsonNode> rows) {
@@ -77,7 +83,9 @@ public final class ControlCatalog {
         ControlDef def = YAML.treeToValue(row, ControlDef.class);
         problems.addAll(validate(def, seen));
         controls.add(def);
-        canonicalRows.put(row.path("row_id").asText(), row);
+        var definition = row.deepCopy();
+        if (definition instanceof com.fasterxml.jackson.databind.node.ObjectNode object) object.remove(DRAFT_ONLY);
+        canonicalRows.put(row.path("row_id").asText(), definition);
       }
       if (!problems.isEmpty()) throw new IllegalArgumentException(String.join("; ", problems));
       controls.sort(Comparator.comparing(ControlDef::rowId));
@@ -85,7 +93,8 @@ public final class ControlCatalog {
       canonicalRows.values().forEach(sorted::add);
       var canonical = YAML.createObjectNode();
       canonical.set("rows", sorted);
-      return new ControlCatalog(root.path("system_id").asText(""), List.copyOf(controls), CanonicalJson.sha256(canonical),
+      var systemId = root.path("matrix_id").asText(root.path("system_id").asText(""));
+      return new ControlCatalog(systemId, List.copyOf(controls), CanonicalJson.sha256(canonical),
           Map.copyOf(canonicalRows));
     } catch (IOException e) {
       throw new IllegalArgumentException("controls.yaml is not valid: " + e.getMessage(), e);

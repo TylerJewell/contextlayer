@@ -776,7 +776,7 @@ class DemoApi:
     # ---- governance
 
     async def controls(self) -> dict[str, Any]:
-        return {"systemId": "contextlayer-akka", "digest": "sha256:" + "ab12" * 16,
+        return {"systemId": "contextlayer", "digest": "sha256:" + "ab12" * 16,
                 "controls": [{"rowId": r, "name": n, "mechanism": m, "lifecycle": lc, "corpusRef": ref, "summary": s,
                               "proofEvent": pe, "boundary": b, "human": h}
                              for r, n, m, lc, ref, s, pe, b, h in _CONTROLS]}
@@ -915,8 +915,8 @@ class DemoApi:
                                 if c["assertion"]["asserted"] and c["coverage"]["coverage"] != "FULL"],
             "notAsSigned": []}
         contract = {"present": True, "intact": True, "problems": [], "digest": "sha256:" + "5a9e" * 16, "revision": 1,
-                    "systemId": "contextlayer-akka", "corpusVersion": "2026-09", "createdAt": _iso(now - 3 * 24 * 60 * _MINUTE),
-                    "signOffRole": "risk-team", "signedOffBy": "CN=contextlayer-risk-team,OU=risk-team,O=contextlayer",
+                    "systemId": "contextlayer", "corpusVersion": "2026-09", "createdAt": _iso(now - 3 * 24 * 60 * _MINUTE),
+                    "signOffRole": "risk-team, control-owner", "signedOffBy": "dan.m@acme.example",
                     "changed": [], "unsigned": [], "notRunning": []}
         return {"catalogDigest": "sha256:" + "ab12" * 16, "asOf": _iso(now), "freshnessDays": 7, "controls": controls,
                 "gaps": gaps, "contract": contract}

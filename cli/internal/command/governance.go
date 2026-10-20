@@ -207,9 +207,9 @@ func (e *env) interaction() *cobra.Command {
 func (e *env) contract() *cobra.Command {
 	return &cobra.Command{
 		Use:   "contract",
-		Short: "Show the signed control contract and whether the service runs exactly its controls",
-		Long: "The service checks that every part of the contract hashes as declared and compares each signed control\n" +
-			"with the one it runs. The signatures are verified with the contract tool: see contract/ in the repository.",
+		Short: "Show the bundle in force and whether the service runs exactly its controls",
+		Long: "The bundle in force is the newest one signed in the Akka local console. The service checks that every\n" +
+			"part hashes as declared and every sign-off verifies, and compares each signed control with the one it runs.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			result, err := e.run("GET", "/governance/contract", nil)
@@ -217,18 +217,18 @@ func (e *env) contract() *cobra.Command {
 				return err
 			}
 			if field(result, "present") != "true" {
-				fmt.Fprintln(e.out, "No signed control contract is packaged with the service.")
-				return fmt.Errorf("no signed contract")
+				fmt.Fprintln(e.out, "No bundle is signed yet: decide and sign this system's controls in the Akka local console.")
+				return fmt.Errorf("no bundle in force")
 			}
 			if field(result, "intact") != "true" {
 				for _, problem := range items(result, "problems") {
 					fmt.Fprintf(e.out, "  problem: %v\n", problem)
 				}
-				return fmt.Errorf("the signed contract is damaged")
+				return fmt.Errorf("the bundle in force does not check out")
 			}
-			fmt.Fprintf(e.out, "%s revision %s, %s\n", field(result, "systemId"), field(result, "revision"), field(result, "digest"))
-			fmt.Fprintf(e.out, "corpus %s, signed off by the %s (%s) at %s\n", field(result, "corpusVersion"),
-				field(result, "signOffRole"), field(result, "signedOffBy"), field(result, "createdAt"))
+			fmt.Fprintf(e.out, "%s bundle v%s, %s\n", field(result, "systemId"), field(result, "revision"), field(result, "digest"))
+			fmt.Fprintf(e.out, "signed by %s as %s at %s\n", field(result, "signedOffBy"), field(result, "signOffRole"),
+				field(result, "createdAt"))
 			drift := false
 			for _, part := range []struct{ key, says string }{
 				{"changed", "runs differently from how it was signed"},

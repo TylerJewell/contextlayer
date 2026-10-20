@@ -11,3 +11,6 @@ demo*/
 *.wav
 *.exe
 node_modules/
+service/akka-context/
+service/CLAUDE.md
+service/.claude/

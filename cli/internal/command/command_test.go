@@ -411,12 +411,12 @@ func TestAModelCallIsReadFromTheLedgerReferenceAsWritten(t *testing.T) {
 
 func TestTheContractSaysWhichControlsDriftedFromTheSignedOnes(t *testing.T) {
 	server, _ := serve(t, map[string]string{"GET /v1/context/governance/contract": `{"present":true,"intact":true,
-		"problems":[],"digest":"sha256:ab","revision":2,"systemId":"contextlayer-akka","corpusVersion":"2026-09",
+		"problems":[],"digest":"sha256:ab","revision":2,"systemId":"contextlayer","corpusVersion":"2026-09",
 		"createdAt":"t","signOffRole":"risk-team","signedOffBy":"CN=r","changed":["custom-cl0008"],"unsigned":[],"notRunning":[]}`})
 
 	out, _, err := execute(t, server, "contract")
 
-	if err != nil || !strings.Contains(out, "custom-cl0008 runs differently from how it was signed") || !strings.Contains(out, "revision 2") {
+	if err != nil || !strings.Contains(out, "custom-cl0008 runs differently from how it was signed") || !strings.Contains(out, "bundle v2") {
 		t.Fatalf("got %q, %v", out, err)
 	}
 }

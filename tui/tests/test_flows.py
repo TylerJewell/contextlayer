@@ -917,4 +917,4 @@ async def test_each_control_says_whether_the_signed_contract_holds_it(demo_app):
         await pilot.pause()
         demo_app.action_goto("governance")
         await pilot.pause(0.3)
-        assert "In the signed contract (revision 1, signed off by the risk-team)" in detail(demo_app, "governance")
+        assert "In the bundle in force (bundle v1, signed by dan.m@acme.example)" in detail(demo_app, "governance")

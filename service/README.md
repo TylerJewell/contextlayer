@@ -97,8 +97,10 @@ under `/v1/context`.
     same checks before it acts on an answer; the evaluators are the runtime's own record of them.
 - Every model call's evidence and case-timeline entry carries `ledger:<interaction id>`, and
   `GET /v1/context/governance/interactions/{id}` returns what the model was sent and said and the runtime's verdicts.
-- The control catalog is signed as a Governance Control Contract (see the root `README.md`). The compliance report says
-  for each control whether the service runs it exactly as signed.
+- `governance/controls.yaml` is also the system's controls draft for the Akka local console, where its controls are
+  decided and signed as bundles into `governance/signed/` (see the root `README.md`). The service checks the bundle in
+  force, verifying its hashes and Ed25519 sign-offs, and the compliance report says for each control whether the
+  service runs it exactly as signed.
 
 Not built: exit conditions (not wanted), ledger-over-HTTP evidence from the runtime, flags on outputs.
 

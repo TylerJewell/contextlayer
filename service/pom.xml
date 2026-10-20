@@ -40,6 +40,17 @@
     </dependencies>
 
     <build>
+        <!-- governance/ is the system's controls draft and its signed bundles, kept where the Akka local console reads
+             and writes them; the service reads the same files from the classpath. -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <resource>
+                <directory>governance</directory>
+                <targetPath>governance</targetPath>
+            </resource>
+        </resources>
         <plugins>
             <!-- The test Neo4j container's password (see README). Without it the service's own startup, which
                  the test kit runs too, fails to log in, and repeated failures lock the account for a few seconds. -->

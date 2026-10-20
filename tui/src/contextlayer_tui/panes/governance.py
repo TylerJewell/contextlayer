@@ -235,13 +235,14 @@ class GovernancePane(Pane):
 
 
 def _contract_line(standing: str | None, contract: dict[str, Any]) -> Text:
-    """Whether the signed control contract holds this control as the service runs it."""
+    """Whether the bundle in force holds this control as the service runs it."""
     if not contract.get("present"):
-        return Text.from_markup(f"[{WARN}]No signed control contract is packaged with the service.[/]")
+        return Text.from_markup(f"[{WARN}]No bundle is signed yet: decide and sign this system's controls in the Akka "
+                                "local console.[/]")
     if not contract.get("intact"):
-        return Text.from_markup(f"[{BAD}]The signed control contract is damaged: {'; '.join(contract.get('problems', []))}[/]")
-    signed = f"revision {contract['revision']}, signed off by the {contract['signOffRole']}"
+        return Text.from_markup(f"[{BAD}]The bundle in force does not check out: {'; '.join(contract.get('problems', []))}[/]")
+    signed = f"bundle v{contract['revision']}, signed by {contract['signedOffBy']}"
     return {
-        "SIGNED": Text.from_markup(f"[{OK}]In the signed contract ({signed}), exactly as the service runs it.[/]"),
+        "SIGNED": Text.from_markup(f"[{OK}]In the bundle in force ({signed}), exactly as the service runs it.[/]"),
         "CHANGED": Text.from_markup(f"[{WARN}]Signed ({signed}), but the service now runs a different definition.[/]"),
-    }.get(standing or "", Text.from_markup(f"[{WARN}]Not in the signed contract ({signed}).[/]"))
+    }.get(standing or "", Text.from_markup(f"[{WARN}]Not in the bundle in force ({signed}).[/]"))
