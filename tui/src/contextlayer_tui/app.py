@@ -10,7 +10,7 @@ from textual.binding import Binding
 from textual.widgets import Footer, Static, TabbedContent, TabPane
 
 from .api import Api
-from .panes.approvals import ApprovalsPane
+from .panes.decisions import DecisionsPane
 from .panes.ask import AskPane
 from .panes.assistants import AssistantsPane
 from .panes.base import Pane
@@ -28,7 +28,7 @@ TABS: list[tuple[str, str, type]] = [
     ("identity", "Identity", IdentityPane),
     ("ask", "Ask", AskPane),
     ("cases", "Cases", CasesPane),
-    ("approvals", "Approvals", ApprovalsPane),
+    ("decisions", "Decisions", DecisionsPane),
     ("assistants", "Assistants", AssistantsPane),
     ("monitors", "Monitors", MonitorsPane),
     ("governance", "Governance", GovernancePane),

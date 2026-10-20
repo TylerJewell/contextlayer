@@ -224,14 +224,14 @@ async def test_cancelling_the_dialog_changes_nothing(demo_app):
         assert table(demo_app, "cases").row_count == 2
 
 
-# ---- approvals
+# ---- decisions
 
 
 async def open_approval(app, pilot) -> None:
     """Goes to the approval and opens it for review; the first press is when you are shown it."""
-    app.action_goto("approvals")
+    app.action_goto("decisions")
     await pilot.pause()
-    assert table(app, "approvals").row_count == 1
+    assert table(app, "decisions").row_count == 1
     await pilot.press("a")
     await pilot.pause(0.4)
 
@@ -239,9 +239,9 @@ async def open_approval(app, pilot) -> None:
 async def test_the_approval_says_what_is_asked_who_asked_and_what_the_control_expects(demo_app):
     async with demo_app.run_test(size=SIZE) as pilot:
         await pilot.pause()
-        demo_app.action_goto("approvals")
+        demo_app.action_goto("decisions")
         await pilot.pause(0.3)
-        text = detail(demo_app, "approvals")
+        text = detail(demo_app, "decisions")
         for expected in ("Should assistant claims-watch be allowed", "It would send", "CL-889",
                          "Requested by priya.k, who cannot decide it",
                          "The payload is within what the assistant may change", "at least 10 seconds",
@@ -253,14 +253,14 @@ async def test_pressing_approve_opens_the_event_first_and_the_next_press_decides
     async with demo_app.run_test(size=SIZE) as pilot:
         await pilot.pause()
         await open_approval(demo_app, pilot)
-        assert table(demo_app, "approvals").row_count == 1  # opened, not decided
-        assert "tyler" in str(table(demo_app, "approvals").get_row_at(0)[4])
-        assert "You have had this open" in detail(demo_app, "approvals")
+        assert table(demo_app, "decisions").row_count == 1  # opened, not decided
+        assert "tyler" in str(table(demo_app, "decisions").get_row_at(0)[4])
+        assert "You have had this open" in detail(demo_app, "decisions")
 
         clock.advance(25)
         await pilot.press("a")
         await give_reason(demo_app, pilot, "routine attachment")
-        assert table(demo_app, "approvals").row_count == 0
+        assert table(demo_app, "decisions").row_count == 0
         demo_app.action_goto("cases")
         await pilot.pause(0.5)
         text = detail(demo_app, "cases")
@@ -277,7 +277,7 @@ async def test_deciding_before_the_minimum_review_time_asks_first_and_counts_as_
         assert "Decide this quickly" in text_of(demo_app.screen.query_one(".dialog-title", Static))
         await pilot.click("#yes")
         await give_reason(demo_app, pilot, "I know this one")
-        assert table(demo_app, "approvals").row_count == 0
+        assert table(demo_app, "decisions").row_count == 0
 
         demo_app.action_goto("governance")
         await pilot.pause(0.5)
@@ -296,20 +296,20 @@ async def test_declining_the_rushed_warning_leaves_the_approval_waiting(demo_app
         await pilot.pause(0.3)
         await pilot.click("#no")
         await pilot.pause(0.3)
-        assert table(demo_app, "approvals").row_count == 1
+        assert table(demo_app, "decisions").row_count == 1
 
 
 async def test_rejecting_an_action_asks_why_and_records_it(demo_app, clock):
     async with demo_app.run_test(size=SIZE) as pilot:
         await pilot.pause()
-        demo_app.action_goto("approvals")
+        demo_app.action_goto("decisions")
         await pilot.pause()
         await pilot.press("x")  # opens it
         await pilot.pause(0.4)
         clock.advance(30)
         await pilot.press("x")
         await give_reason(demo_app, pilot, "wrong client")
-        assert table(demo_app, "approvals").row_count == 0
+        assert table(demo_app, "decisions").row_count == 0
         demo_app.action_goto("cases")
         await pilot.pause(0.5)
         assert "rejected by you: wrong client" in detail(demo_app, "cases")
@@ -325,7 +325,7 @@ async def test_a_decision_without_a_reason_is_not_taken(demo_app, clock):
         assert "type something" in text_of(demo_app.screen.query_one("#problem", Static))
         await pilot.press("escape")
         await pilot.pause(0.3)
-        assert table(demo_app, "approvals").row_count == 1
+        assert table(demo_app, "decisions").row_count == 1
 
 
 async def test_the_person_who_asked_for_it_cannot_approve_it(make_app, clock):
@@ -337,14 +337,14 @@ async def test_the_person_who_asked_for_it_cannot_approve_it(make_app, clock):
         await pilot.press("a")
         await give_reason(app, pilot)
         assert any("cannot decide it" in n for n in notices(app))
-        assert table(app, "approvals").row_count == 1
+        assert table(app, "decisions").row_count == 1
 
 
 async def test_someone_without_the_approver_role_cannot_even_open_it(make_app, clock):
     app = make_app("olivia", ["operator", "reviewer"])
     async with app.run_test(size=SIZE) as pilot:
         await pilot.pause()
-        app.action_goto("approvals")
+        app.action_goto("decisions")
         await pilot.pause()
         await pilot.press("a")
         await pilot.pause(0.4)
@@ -354,11 +354,11 @@ async def test_someone_without_the_approver_role_cannot_even_open_it(make_app, c
 async def test_escalating_moves_it_up_and_an_approver_can_no_longer_take_it(demo_app):
     async with demo_app.run_test(size=SIZE) as pilot:
         await pilot.pause()
-        demo_app.action_goto("approvals")
+        demo_app.action_goto("decisions")
         await pilot.pause()
         await pilot.press("e")
         await give_reason(demo_app, pilot, "needs an admin to look at the payload")
-        text = detail(demo_app, "approvals")
+        text = detail(demo_app, "decisions")
         assert "escalated" in text and "admin" in text
         await pilot.press("a")
         await pilot.pause(0.4)
@@ -368,11 +368,11 @@ async def test_escalating_moves_it_up_and_an_approver_can_no_longer_take_it(demo
 async def test_sending_it_back_hands_it_to_the_requester(demo_app):
     async with demo_app.run_test(size=SIZE) as pilot:
         await pilot.pause()
-        demo_app.action_goto("approvals")
+        demo_app.action_goto("decisions")
         await pilot.pause()
         await pilot.press("b")
         await give_reason(demo_app, pilot, "which document?")
-        text = detail(demo_app, "approvals")
+        text = detail(demo_app, "decisions")
         assert "sent back" in text and "With its requester" in text
 
 
@@ -382,7 +382,7 @@ async def test_releasing_it_lets_someone_else_take_it(demo_app):
         await open_approval(demo_app, pilot)
         await pilot.press("r")
         await pilot.pause(0.4)
-        assert str(table(demo_app, "approvals").get_row_at(0)[4]) == "—"
+        assert str(table(demo_app, "decisions").get_row_at(0)[4]) == "—"
 
 
 # ---- assistants
@@ -651,9 +651,9 @@ async def test_restarting_needs_a_second_approver(demo_app):
         assert "HALTED" in detail(demo_app, "assistants")
 
         demo_app.api.subject = "carol"  # the second approver, at their own console
-        demo_app.action_goto("approvals")
+        demo_app.action_goto("decisions")
         await pilot.pause(0.5)
-        grid = table(demo_app, "approvals")
+        grid = table(demo_app, "decisions")
         rows = [str(grid.get_row_at(i)[0]) for i in range(grid.row_count)]
         restart = next(i for i, r in enumerate(rows) if "Restart" in r)
         grid.move_cursor(row=restart)

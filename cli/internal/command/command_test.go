@@ -98,10 +98,10 @@ func TestARefusalIsOneSentenceOnStandardError(t *testing.T) {
 func TestDecidingNeedsAReasonAndAChoiceBeforeAnythingIsSent(t *testing.T) {
 	server, calls := serve(t, nil)
 
-	if _, _, err := execute(t, server, "approvals", "decide", "e1", "--approve"); err == nil {
+	if _, _, err := execute(t, server, "decisions", "decide", "e1", "--approve"); err == nil {
 		t.Fatal("a decision without a rationale was accepted")
 	}
-	if _, _, err := execute(t, server, "approvals", "decide", "e1", "--rationale", "fine"); err == nil {
+	if _, _, err := execute(t, server, "decisions", "decide", "e1", "--rationale", "fine"); err == nil {
 		t.Fatal("a decision without a choice was accepted")
 	}
 	if len(*calls) != 0 {
@@ -115,7 +115,7 @@ func TestADecisionWithNoTerminalAndNoForceIsNotMade(t *testing.T) {
 	// A pipe is what a script gives a command: standard input that is not a terminal.
 	pipe, _, _ := os.Pipe()
 
-	_, errOut, err := executeWith(t, pipe, server, "approvals", "decide", "e1", "--approve", "--rationale", "fine")
+	_, errOut, err := executeWith(t, pipe, server, "decisions", "decide", "e1", "--approve", "--rationale", "fine")
 
 	if err == nil || !strings.Contains(errOut, "use --force") || len(*calls) != 0 {
 		t.Fatalf("err=%v errOut=%q calls=%v", err, errOut, *calls)
@@ -125,7 +125,7 @@ func TestADecisionWithNoTerminalAndNoForceIsNotMade(t *testing.T) {
 func TestAForcedDecisionSendsTheActionAndTheRationale(t *testing.T) {
 	server, calls := serve(t, map[string]string{"POST /v1/context/oversight/events/e1/decision": `{}`})
 
-	out, _, err := execute(t, server, "approvals", "decide", "e1", "--approve", "--rationale", "routine", "--force")
+	out, _, err := execute(t, server, "decisions", "decide", "e1", "--approve", "--rationale", "routine", "--force")
 
 	if err != nil || !strings.Contains(out, "Recorded approve for e1.") {
 		t.Fatalf("out=%q err=%v", out, err)
@@ -139,7 +139,7 @@ func TestAForcedDecisionSendsTheActionAndTheRationale(t *testing.T) {
 func TestRejectingSendsTheActionTheControlAllows(t *testing.T) {
 	server, calls := serve(t, map[string]string{"POST /v1/context/oversight/events/e1/decision": `{}`})
 
-	if _, _, err := execute(t, server, "approvals", "decide", "e1", "--reject", "--rationale", "wrong customer", "--force"); err != nil {
+	if _, _, err := execute(t, server, "decisions", "decide", "e1", "--reject", "--rationale", "wrong customer", "--force"); err != nil {
 		t.Fatal(err)
 	}
 	if got := (*calls)[0].body["action"]; got != "DENY" {
@@ -418,5 +418,13 @@ func TestTheContractSaysWhichControlsDriftedFromTheSignedOnes(t *testing.T) {
 
 	if err != nil || !strings.Contains(out, "custom-cl0008 runs differently from how it was signed") || !strings.Contains(out, "revision 2") {
 		t.Fatalf("got %q, %v", out, err)
+	}
+}
+
+func TestApprovalsStillNamesTheDecisionsCommand(t *testing.T) {
+	server, calls := serve(t, map[string]string{"GET /v1/context/oversight/events?state=pending": `{"events":[]}`})
+
+	if _, _, err := execute(t, server, "approvals", "list"); err != nil || len(*calls) != 1 {
+		t.Fatalf("got %v, calls %v", err, *calls)
 	}
 }

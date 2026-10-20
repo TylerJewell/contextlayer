@@ -74,7 +74,7 @@ async def test_a_question_comes_back_with_rows_and_a_freshness_report(api):
         has(s, "pack", "entityType", "freshness", "lastOutcome", "dataAsOf", "warnings")
 
 
-async def test_the_identity_queue_and_the_approvals_are_lists_the_screens_can_read(api):
+async def test_the_identity_queue_and_the_decisions_are_lists_the_screens_can_read(api):
     for cluster in await api.identity_review():
         has(cluster, "rule", "key", "confidence", "memberCount")
     for event in await api.human_events():

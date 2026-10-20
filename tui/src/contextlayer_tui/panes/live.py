@@ -15,6 +15,8 @@ from ..format import DIM, OK, WARN, clock
 from .base import Pane
 
 MAX_KEPT = 200
+# The feed names a change by its database operation; a person reads what happened to the record.
+_OPS = {"upsert": "written", "delete": "removed", "refreshed": "read whole"}
 
 
 class LivePane(Pane):
@@ -60,7 +62,8 @@ class LivePane(Pane):
         key = f"c{self.seen}"
         colour = WARN if change["op"] == "delete" else OK
         record = change.get("entityId") or "(read whole)"
-        cells = (clock(change["at"]), f"[{colour}]{change['op']}[/]", change["entityType"], record, change["pack"])
+        cells = (clock(change["at"]), f"[{colour}]{_OPS.get(change['op'], change['op'])}[/]", change["entityType"], record,
+                 change["pack"])
         self.rows.insert(0, (key, change, cells))
         del self.rows[MAX_KEPT:]
         try:

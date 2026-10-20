@@ -1,4 +1,4 @@
-"""Approvals: things that wait for a person, with the rules a control puts on how they are decided."""
+"""Decisions: things that wait for a person, with the rules a control puts on how they are decided."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ def _millis(iso: str | None) -> int:
     return int(datetime.fromisoformat(iso.replace("Z", "+00:00")).timestamp() * 1000) if iso else 0
 
 
-class ApprovalsPane(Pane):
+class DecisionsPane(Pane):
     columns = ("Wants to", "Assistant", "State", "Due", "Held by")
     empty_text = "Nothing is waiting for a person."
     BINDINGS = [

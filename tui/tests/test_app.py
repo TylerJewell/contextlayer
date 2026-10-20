@@ -27,7 +27,7 @@ async def test_tab_labels_carry_the_counts_that_need_attention(demo_app):
         tabs = demo_app.query_one("#tabs", TabbedContent)
         assert "(3)" in str(tabs.get_tab("identity").label)
         assert "(2)" in str(tabs.get_tab("cases").label)
-        assert "(1)" in str(tabs.get_tab("approvals").label)
+        assert "(1)" in str(tabs.get_tab("decisions").label)
         assert "(1)" in str(tabs.get_tab("governance").label)  # one control is failing
 
 

@@ -310,7 +310,7 @@ async def main() -> None:
         while time.time() < deadline:
             await app.refresh_all(quiet=True)
             cases = len(app.query_one("#cases-pane").items)
-            waiting = len(app.query_one("#approvals-pane").items)
+            waiting = len(app.query_one("#decisions-pane").items)
             if cases >= 3 and waiting >= 2:
                 break
             await asyncio.sleep(3)
@@ -331,18 +331,18 @@ async def main() -> None:
         await pilot.pause(1.2)
         await shot("A minute later: three cases, the team notified, the model's label, and an action waiting")
 
-        # ---- approvals
-        film.beat("approvals", "This is the approval. It says what is asked, what to check, and how long the control expects me to spend. "
+        # ---- decisions
+        film.beat("decisions", "This is the approval. It says what is asked, what to check, and how long the control expects me to spend. "
                   "First I open it, then I read. If I decided too quickly, the console would say so and the decision would be recorded as rushed. "
                   "I approve, with a reason. Only now is the action sent, once, with an idempotency key.")
-        app.action_goto("approvals")
+        app.action_goto("decisions")
         await pilot.pause(0.8)
-        await shot("Approvals: what is asked, who asked, what to check, and what the control expects")
+        await shot("Decisions: what is asked, who asked, what to check, and what the control expects")
         await pilot.press("a")
         await pilot.pause(0.6)
         await shot("Press a to open it. The clock starts")
         await asyncio.sleep(11)
-        app.query_one("#approvals-pane").show_detail()
+        app.query_one("#decisions-pane").show_detail()
         await shot("Read it. After the minimum review time, deciding is not flagged")
         await pilot.press("a")
         await pilot.pause(0.6)

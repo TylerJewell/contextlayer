@@ -28,8 +28,9 @@ func (e *env) assistants() *cobra.Command {
 	}
 }
 
-func (e *env) approvals() *cobra.Command {
-	group := &cobra.Command{Use: "approvals", Short: "Things waiting for a person"}
+func (e *env) decisions() *cobra.Command {
+	// The "approvals" alias keeps scripts that use that name working.
+	group := &cobra.Command{Use: "decisions", Aliases: []string{"approvals"}, Short: "Things that cannot happen until a person says yes or no"}
 	group.AddCommand(&cobra.Command{
 		Use:   "list",
 		Short: "List what is waiting for a decision",

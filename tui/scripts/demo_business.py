@@ -213,19 +213,19 @@ async def main() -> None:
         await pilot.pause(0.8)
         await shot("Cases: what the watchers found, with the evidence and who was told")
 
-        # ---- approvals
-        film.beat("approvals", "Now an assistant wants to act. It has proposed adding a note to a customer record. Because that is a change, "
+        # ---- decisions
+        film.beat("decisions", "Now an assistant wants to act. It has proposed adding a note to a customer record. Because that is a change, "
                   "it waits for a person. The approval says what is asked, who asked, what to check, and how long review should take. "
                   "I open it, then I read. If I decided too fast, the decision would be recorded as rushed. "
                   "The person who asked can never be the person who approves. I approve, and give a reason.")
-        app.action_goto("approvals")
+        app.action_goto("decisions")
         await pilot.pause(0.8)
-        await shot("Approvals: what is asked, who asked, what to check")
+        await shot("Decisions: what is asked, who asked, what to check")
         await pilot.press("a")
         await pilot.pause(0.6)
         await shot("Opening it starts the review clock")
         await asyncio.sleep(11)
-        app.query_one("#approvals-pane").show_detail()
+        app.query_one("#decisions-pane").show_detail()
         await shot("After the minimum time, deciding is not flagged as rushed")
         await pilot.press("a")
         await pilot.pause(0.6)
