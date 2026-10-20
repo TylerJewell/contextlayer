@@ -4,7 +4,7 @@ __pycache__/
 *.py[oc]
 .pytest_cache/
 .ruff_cache/
-akka-context/
+/akka-context/
 .akka/
 demo*/
 *.mp4
