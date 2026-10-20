@@ -42,6 +42,7 @@ That makes an unsigned token. A deployed service refuses it.
 | 6 | Assistants | Stage, releases, and what a shadow assistant would have done. `p` promote, `b` step back, `a` approve a release. |
 | 7 | Monitors | Questions that run on a schedule. `n` run now, `e` pause or resume. |
 | 8 | Governance | Each control, whether its evidence upholds it, and what proves it. `w` waive, `l` lift a waiver (admin). |
+| g | Glossary | Every term the console uses, in plain words, and why it matters. Needs no service. |
 
 `F5` refreshes everything. Each tab also reloads when you switch to it. A background refresh runs every
 15 seconds and only changes the banner if the service goes away.

@@ -870,3 +870,25 @@ async def test_attaching_a_document_to_a_control_with_nothing_asserted_says_so(d
         await pilot.pause(0.4)
         notices = " ".join(str(n.message) for n in demo_app._notifications)
         assert "Nothing is asserted about this control" in notices
+
+
+# ---- glossary
+
+
+async def test_g_opens_the_glossary_and_shows_a_plain_definition(demo_app):
+    async with demo_app.run_test(size=SIZE) as pilot:
+        await pilot.pause()
+        demo_app.query_one("#systems-pane #table", DataTable).focus()
+        await pilot.press("g")
+        await pilot.pause()
+        assert demo_app.query_one("#tabs", TabbedContent).active == "glossary"
+        detail = text_of(demo_app.query_one("#glossary-pane #detail", Static))
+        assert "Why it matters" in detail
+
+
+def test_every_glossary_term_is_defined_once_in_full():
+    from contextlayer_tui.panes.glossary import TERMS
+
+    names = [term for term, *_ in TERMS]
+    assert len(names) == len(set(names))
+    assert all(area and meaning and why for _, area, meaning, why in TERMS)

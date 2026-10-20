@@ -1,4 +1,4 @@
-"""The console: a banner, ten tabs, and one footer that shows the keys for where you are."""
+"""The console: a banner, eleven tabs, and one footer that shows the keys for where you are."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from .panes.assistants import AssistantsPane
 from .panes.base import Pane
 from .panes.cases import CasesPane
 from .panes.domains import DomainsPane
+from .panes.glossary import GlossaryPane
 from .panes.governance import GovernancePane
 from .panes.identity import IdentityPane
 from .panes.live import LivePane
@@ -33,6 +34,7 @@ TABS: list[tuple[str, str, type]] = [
     ("governance", "Governance", GovernancePane),
     ("domains", "Domains", DomainsPane),
     ("live", "Live", LivePane),
+    ("glossary", "Glossary", GlossaryPane),
 ]
 
 REFRESH_SECONDS = 15
@@ -44,7 +46,9 @@ class ContextLayerApp(App):
     BINDINGS = [
         Binding("f5", "refresh", "Refresh"),
         Binding("q", "quit", "Quit"),
-        *[Binding(str((i + 1) % 10), f"goto('{tab_id}')", label, show=False) for i, (tab_id, label, _) in enumerate(TABS)],
+        # The first ten tabs take the number keys; the glossary has its own key.
+        *[Binding(str((i + 1) % 10), f"goto('{tab_id}')", label, show=False) for i, (tab_id, label, _) in enumerate(TABS[:10])],
+        Binding("g", "goto('glossary')", "Glossary"),
     ]
 
     def __init__(self, api: Api, org: str, org_title: str | None = None) -> None:
