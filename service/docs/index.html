@@ -1,0 +1,1695 @@
+<!doctype html>
+<!--
+  /akka:docs template — DO NOT edit the CSS, the layout, the fonts, or the
+  colors when generating a project's documentation. This template is the
+  fixed design contract; the assistant fills the {{placeholders}} and copies
+  the fragments below into the placeholder regions verbatim.
+
+  Placeholders (single-value):
+    Context Layer                    — value for <title> and <h1> (project name)
+    A governed context layer on the Akka SDK: it answers questions across source systems, says how current each answer is, and keeps people in charge of identity, access and actions.                     — one-line description under the h1
+    56          — total component count
+    53              — total emitted-event count
+    9           — total endpoint count
+    10               — total view count
+    55      — total domain-object count
+    State and events of the 19 entities; the records they hold are listed by field              — sec-hint text for the entity diagram
+    A pushed change to a record, from the source system to the watchers; a webhook takes the same path through StreamEndpoint         — sec-hint text for the interaction diagram
+    Overview of the core path: connectors, evidence, claims and the change feed. The evidence chain is drawn in detail below     — sec-hint text for the component graph
+    contextlayer                     — short kebab-case project slug, used to prefix
+                                   every SVG title/desc id (see A11Y below)
+    A pushed change reaches the store and the watchers        — <title> for the interaction diagram (<60 chars)
+    A claims system publishes a record change on its stream; the consumer writes it to the entity store, records the refresh status, and publishes a notice to the change feed.         — <desc>: one sentence on what it shows
+    Core components and how they connect    — <title> for the component graph (<60 chars)
+    Three endpoints reach four entities and two views: connector packs feed their view, evidence feeds its view, and the stream endpoint reads the change feed.     — <desc>: one sentence on what it shows
+    Akka SDK            — right-side footer text (typically "Akka SDK")
+
+  Placeholder regions (paste one or more fragments; fragments are shown in
+  HTML comments at the top of each region below):
+    {{ENTITY_BOXES}}             — one ent-box or dom-box fragment per entity/domain object
+    {{INTERACTION_SVG_BODY}}     — the SVG body for the interaction diagram
+    {{COMPONENT_GRAPH_BODY}}     — the SVG body for the component graph
+    {{ADDITIONAL_DIAGRAMS}}      — zero or more extra diagrams that earn their slot;
+                                   this is where an over-budget diagram's detail half goes
+    {{COMPONENT_REFERENCE}}      — one component-section fragment per component
+
+  Adding an extra diagram means adding its CSS too if it uses a class the three
+  fixed diagrams do not — a class with no rule renders as SVG defaults, which on
+  this dark ground is a black shape on a black background. The page carries its
+  own copy of this stylesheet, so a change here reaches existing pages only when
+  they are regenerated.
+
+  ============================================================================
+  RULES THAT ARE VERIFIED. `/akka:docs` runs harnesses/content/diagram_check.py
+  over the generated page and CONTENT-LANGUAGE goes red on any finding. These
+  are not style advice.
+
+  Machine-checked: the accessible-SVG contract; diagonal connectors; every
+  <rect> and <line> coordinate on the 4px grid; a label mask clipped by a node
+  drawn after it; a connector label with no mask at all; the node, connector,
+  lane and accent budgets; every CSS class used having a rule; the Akka palette;
+  no remote assets and no scripts; and the file's encoding (no BOM, no mojibake).
+
+  NOT machine-checked, so they need care: elbow radius, attach-point spacing,
+  the 6-10px label gap, and paint order. Each needs information the markup does
+  not carry, and a check that misfires is worse than no check.
+
+  A11Y — every diagram <svg> MUST carry:
+    role="img" and aria-labelledby="<slug>-<name>-title <slug>-<name>-desc"
+    <title> as its FIRST child, before <defs>, id="<slug>-<name>-title"
+    <desc> immediately after, id="<slug>-<name>-desc"
+    Bare ids `title` / `desc` are banned: two diagrams on one page would
+    collide and the second gets announced with the first one's name.
+    <desc> states what the diagram shows, not its geometry. "Command path from
+    the HTTP endpoint through the order entity to the read model", never
+    "a box at the left with arrows to three boxes".
+
+  CONNECTORS — no diagonal <line> between off-axis nodes. Two nodes that share
+    neither x nor y are joined by a rounded right-angle <path> elbow, r=8:
+      M x1 y1 V (ym-8) Q x1 ym (x1+8s) ym H (x2-8s) Q x2 ym x2 (ym+8) V y2
+    where ym is the midpoint of the vertical gap and s = sign(x2-x1).
+    A plain <line> is correct only when x1==x2 or y1==y2.
+    Two connectors entering the same edge of a box get their own attach point,
+    >=12px apart: for N connectors on an edge of length L, point k sits at
+    L*k/(N+1) from the leading corner.
+
+  ARROW LABELS — every label needs an opaque mask rect behind it AND a visible
+    6-10px gap between the bottom of that mask and the stroke. A label sitting
+    on its own connector hides the thing it describes. Mask fill is #070707 on
+    open canvas, #0A0A0A inside a .sec panel.
+
+  COLOR — the two rules apply to different diagrams, and mixing them erases
+    both. Inventory graphics (component graph, entity boxes) are CATEGORICAL:
+    the seven kind colors identify what a thing is, and the legend decodes
+    them. Narrative graphics (the interaction diagram) are EDITORIAL: the
+    primary path is yellow, everything else is muted grey. Do not color an
+    interaction lane by component kind — it makes every arrow equally loud and
+    the reader cannot find the path that matters.
+
+  BUDGET — per diagram: max 9 nodes, max 12 connectors, max 5 interaction
+    lanes. Over budget, split into an overview plus a detail diagram rather
+    than shrinking the type. A component omitted to stay in budget is a
+    recorded waiver with a reason in the component reference, never a silent
+    drop.
+
+  GRID — every coordinate, width, height, gap and font-size divisible by 4.
+    Exempt: stroke widths (0.8, 1, 1.2) and opacity.
+  ============================================================================
+-->
+<html lang="en"><head><meta charset="utf-8">
+<title>Context Layer — Project Documentation</title>
+<style>
+:root{--yellow:#F5C518;--green:#28C840;--white:#F5F5F5;}
+*{margin:0;box-sizing:border-box}
+body{background:#070707;color:#B8B8B8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.6}
+.wrap{max-width:1080px;margin:0 auto;padding:48px 40px 80px;position:relative}
+.bg{position:fixed;inset:0;background-image:radial-gradient(circle,rgba(245,197,24,0.035) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;z-index:0}
+.wrap>*{position:relative;z-index:1}
+.mono{font-family:'SF Mono','Cascadia Code','Consolas',monospace}
+.brand{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.brand-mark{font-weight:800;letter-spacing:1px;color:#0A0A0A;background:var(--yellow);padding:3px 9px;border-radius:5px;font-size:14px}
+.brand-sub{font-size:11px;text-transform:uppercase;letter-spacing:3px;color:#666;font-weight:600}
+h1{font-size:40px;font-weight:700;letter-spacing:-0.03em;color:var(--white);margin:14px 0 6px}
+.lead{font-size:15px;color:#999;max-width:720px;margin-bottom:34px}
+.section-label{font-size:11px;text-transform:uppercase;letter-spacing:3px;color:var(--yellow);font-weight:600;margin:52px 0 16px;display:flex;align-items:center;gap:10px}
+.section-label::before{content:'';width:28px;height:2px;background:var(--yellow)}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:8px}
+.stat{background:#0A0A0A;border:1px solid #1C1C1C;border-radius:8px;padding:16px;text-align:center}
+.stat-num{font-size:30px;font-weight:700;color:var(--yellow);line-height:1}
+.stat-label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1.5px;margin-top:6px}
+/* collapsible section */
+details.sec{background:#0A0A0A;border:1px solid #1C1C1C;border-radius:10px;margin-bottom:10px;overflow:hidden}
+details.sec>summary{list-style:none;cursor:pointer;padding:15px 20px;display:flex;align-items:center;gap:11px;user-select:none}
+details.sec>summary::-webkit-details-marker{display:none}
+.chev{color:#555;font-size:10px;transition:transform .2s ease;width:12px;flex-shrink:0}
+details[open]>summary .chev{transform:rotate(90deg);color:var(--yellow)}
+.sec-dot{width:8px;height:8px;border-radius:4px;flex-shrink:0}
+.sec-title{font-size:14px;font-weight:700;color:var(--white)}
+.sec-type{font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#666;margin-left:2px}
+.sec-id{font-size:11px;color:#F5C518;margin-left:2px}
+.sec-hint{font-size:12px;color:#666;margin-left:auto;text-align:right}
+.sec-body{padding:4px 22px 22px;border-top:1px solid #141414}
+/* code */
+.comp-desc{font-size:13.5px;color:#9a9a9a;margin:12px 0 14px;max-width:820px}
+.code{background:#050505;border:1px solid #1C1C1C;border-radius:8px;overflow:hidden}
+.code-bar{background:#0D0D0D;border-bottom:1px solid #1C1C1C;padding:6px 14px;font-size:11px;color:#666}
+.code-body{padding:14px 18px;font-size:12px;line-height:1.75;color:#B8B8B8;white-space:pre;overflow-x:auto}
+.kw{color:#C792EA}.ty{color:#FFCB6B}.st{color:#C3E88D}.cm{color:#546E7A;font-style:italic}.an{color:#F5C518}.fn{color:#82AAFF}.num{color:#F78C6C}
+/* diagrams */
+.dg-layer{padding:14px 0;border-bottom:1px solid #1C1C1C}.dg-layer:last-child{border-bottom:none}
+.dg-layer-label{font-size:9px;text-transform:uppercase;letter-spacing:2px;font-weight:700;color:#F5C518;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.dg-layer-label::before{content:'';width:14px;height:1px;background:#F5C518}
+.dg-nodes{display:flex;gap:10px;flex-wrap:wrap}
+.node{border-radius:6px;padding:8px 14px;min-width:120px}
+.node .nt{font-size:7px;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:3px}
+.node .nn{font-size:12px;font-weight:700;color:#fff}
+.node.ext{background:#141414;border:1px dashed #666}.node.ext .nt{color:#666}
+.node.ep{background:#141414;border:1px solid #fff}.node.ep .nt{color:#aaa}
+.node.ese{background:#1A1600;border:1px solid #F5C518}.node.ese .nt{color:#F5C518}
+.node.view{background:#120A1A;border:1px solid #A855F7}.node.view .nt{color:#A855F7}
+.node.kve{background:#04180A;border:1px solid #28C840}.node.kve .nt{color:#28C840}
+.node.wf{background:#0F1418;border:1px solid #7EC8E3}.node.wf .nt{color:#7EC8E3}
+.node.agent{background:#141414;border:1px solid #FF6B6B}.node.agent .nt{color:#FF6B6B}
+/* component graph — kind color is fixed by class, exactly as the .node rules above */
+.cg{width:100%;height:auto}
+.cg .band{font-size:9px;letter-spacing:2px;font-weight:700;fill:#F5C518;text-transform:uppercase}
+.cg .nn{font-size:12px;font-weight:700;fill:#fff}
+.cg .nt{font-size:7px;letter-spacing:1px;font-weight:700}
+.cg .edge{stroke:#8a8a8a;stroke-width:1;fill:none}
+.cg .edge.evt{stroke:#F5C518}
+.cg .edge.async{stroke-dasharray:5 4}
+.cg .elbl{font-size:8px;letter-spacing:.06em;fill:#aaa}
+.cg .emask{fill:#0A0A0A}
+.cg .n-ext rect.box{fill:#141414;stroke:#666;stroke-dasharray:4 3}.cg .n-ext .nt{fill:#666}
+.cg .n-ep   rect.box{fill:#141414;stroke:#fff}                    .cg .n-ep .nt{fill:#aaa}
+.cg .n-ese  rect.box{fill:#1A1600;stroke:#F5C518}                 .cg .n-ese .nt{fill:#F5C518}
+.cg .n-view rect.box{fill:#120A1A;stroke:#A855F7}                 .cg .n-view .nt{fill:#A855F7}
+.cg .n-kve  rect.box{fill:#04180A;stroke:#28C840}                 .cg .n-kve .nt{fill:#28C840}
+.cg .n-wf   rect.box{fill:#0F1418;stroke:#7EC8E3}                 .cg .n-wf .nt{fill:#7EC8E3}
+.cg .n-agent rect.box{fill:#141414;stroke:#FF6B6B}                .cg .n-agent .nt{fill:#FF6B6B}
+/* additional diagrams reuse .cg; states are not components, so they get their own treatment */
+.cg .state rect{fill:#141414;stroke:#666;stroke-width:1}
+.cg .state.focal rect{fill:#1A1600;stroke:#F5C518}
+.cg .state.term rect{fill:#0A0A0A;stroke:#333}
+.cg .sub{font-size:9px;fill:#888;font-family:'SF Mono','Consolas',monospace}
+.legend{display:flex;gap:18px;padding-top:14px;margin-top:6px;border-top:1px solid #1C1C1C;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:10px;color:#888}
+.legend-bar{width:14px;height:2px;border-radius:1px}
+.entity{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:6px}
+.ent-box{background:#050505;border:1px solid #1C1C1C;border-radius:8px;overflow:hidden}
+.ent-title{background:#1A1600;border-bottom:1px solid #F5C518;padding:8px 14px;font-weight:700;color:#F5C518;font-size:13px}
+.ent-rows{padding:8px 0}
+.ent-row{display:flex;justify-content:space-between;padding:4px 14px;font-size:12px;font-family:'SF Mono','Consolas',monospace}
+.ent-row .fname{color:#ccc}.ent-row .ftype{color:#FFCB6B}
+.ent-events{padding:8px 14px 12px}
+.ent-events .lbl{font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#888;margin-bottom:6px}
+.ent-ev{display:inline-block;background:#141414;border:1px solid #333;border-radius:4px;padding:3px 9px;margin:0 5px 5px 0;font-size:11px;color:#C3E88D;font-family:'SF Mono','Consolas',monospace}
+.foot{margin-top:56px;padding-top:20px;border-top:1px solid #1C1C1C;font-size:11px;color:#555;display:flex;justify-content:space-between}
+.foot .cmd{color:#F5C518}
+.cg .n-con rect.box{fill:#141414;stroke:#8a8a8a}.cg .n-con .nt{fill:#8a8a8a}
+</style></head>
+<body><div class="bg"></div><div class="wrap">
+
+<div class="brand"><span class="brand-mark">AKKA</span><span class="brand-sub">Project Documentation</span></div>
+<h1>Context Layer</h1>
+<p class="lead">A governed context layer on the Akka SDK: it answers questions across source systems, says how current each answer is, and keeps people in charge of identity, access and actions.</p>
+
+<div class="stats">
+  <div class="stat"><div class="stat-num">56</div><div class="stat-label">Components</div></div>
+  <div class="stat"><div class="stat-num">53</div><div class="stat-label">Events</div></div>
+  <div class="stat"><div class="stat-num">9</div><div class="stat-label">Endpoints</div></div>
+  <div class="stat"><div class="stat-num">10</div><div class="stat-label">Views</div></div>
+  <div class="stat"><div class="stat-num">55</div><div class="stat-label">Domain Objects</div></div>
+</div>
+
+<div class="section-label">Diagrams</div>
+
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#F5C518"></span><span class="sec-title">Entity diagram</span><span class="sec-hint">State and events of the 19 entities; the records they hold are listed by field</span></summary>
+  <div class="sec-body">
+  <div class="entity">
+      <div class="ent-box">
+    <div class="ent-title">ActionLedgerEntity <span style="font-weight:400;font-size:10px;color:#888">&middot; ActionRecord</span></div>
+    <div class="ent-rows">
+      <div class="ent-row"><span class="fname">orgId</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">assistantId</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">actionKey</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">actionType</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">payload</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">risk</span><span class="ftype">RiskClass</span></div>
+      <div class="ent-row"><span class="fname">releaseId</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">status</span><span class="ftype">ActionStatus</span></div>
+      <div class="ent-row"><span class="fname">reason</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">decidedBy</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">exists</span><span class="ftype">boolean</span></div>
+    </div>
+    <div class="ent-events"><div class="lbl">Events</div>
+      <span class="ent-ev">Requested</span>
+      <span class="ent-ev">Approved</span>
+      <span class="ent-ev">Rejected</span>
+      <span class="ent-ev">Started</span>
+      <span class="ent-ev">Succeeded</span>
+      <span class="ent-ev">Failed</span>
+      <span class="ent-ev">OutcomeUnknown</span>
+      <span class="ent-ev">UnknownResolved</span>
+    </div>
+  </div>
+  <div class="ent-box">
+    <div class="ent-title">AssistantEntity <span style="font-weight:400;font-size:10px;color:#888">&middot; Assistant</span></div>
+    <div class="ent-rows">
+      <div class="ent-row"><span class="fname">orgId</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">assistantId</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">purpose</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">owner</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">stage</span><span class="ftype">AssistantStage</span></div>
+      <div class="ent-row"><span class="fname">releases</span><span class="ftype">List&lt;Release&gt;</span></div>
+      <div class="ent-row"><span class="fname">exists</span><span class="ftype">boolean</span></div>
+    </div>
+    <div class="ent-events"><div class="lbl">Events</div>
+      <span class="ent-ev">Created</span>
+      <span class="ent-ev">ReleaseAdded</span>
+      <span class="ent-ev">ReleaseApproved</span>
+      <span class="ent-ev">StageChanged</span>
+    </div>
+  </div>
+  <div class="ent-box">
+    <div class="ent-title">CaseEntity <span style="font-weight:400;font-size:10px;color:#888">&middot; CaseFile</span></div>
+    <div class="ent-rows">
+      <div class="ent-row"><span class="fname">orgId</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">caseId</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">monitorId</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">monitorVersion</span><span class="ftype">int</span></div>
+      <div class="ent-row"><span class="fname">key</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">evidence</span><span class="ftype">Map&lt;String, Object&gt;</span></div>
+      <div class="ent-row"><span class="fname">sourceNotes</span><span class="ftype">List&lt;String&gt;</span></div>
+      <div class="ent-row"><span class="fname">routeTo</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">assistantId</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">status</span><span class="ftype">Status</span></div>
+      <div class="ent-row"><span class="fname">timeline</span><span class="ftype">List&lt;TimelineItem&gt;</span></div>
+      <div class="ent-row"><span class="fname">exists</span><span class="ftype">boolean</span></div>
+    </div>
+    <div class="ent-events"><div class="lbl">Events</div>
+      <span class="ent-ev">Opened</span>
+      <span class="ent-ev">NoLongerMatching</span>
+      <span class="ent-ev">Resolved</span>
+      <span class="ent-ev">Dismissed</span>
+      <span class="ent-ev">Annotated</span>
+    </div>
+  </div>
+  <div class="ent-box">
+    <div class="ent-title">ChainLinkEntity <span style="font-weight:400;font-size:10px;color:#888">&middot; ChainLinkEntity.State</span></div>
+    <div class="ent-rows">
+      <div class="ent-row"><span class="fname">link</span><span class="ftype">Integrity.Link</span></div>
+    </div>
+    <div class="ent-events"><div class="lbl">Events</div>
+      <span class="ent-ev">Written</span>
+    </div>
+  </div>
+  <div class="ent-box">
+    <div class="ent-title">ConnectorPackEntity <span style="font-weight:400;font-size:10px;color:#888">&middot; ConnectorPack</span></div>
+    <div class="ent-rows">
+      <div class="ent-row"><span class="fname">orgId</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">name</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">versions</span><span class="ftype">List&lt;Version&gt;</span></div>
+      <div class="ent-row"><span class="fname">activeHash</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">mode</span><span class="ftype">Mode</span></div>
+      <div class="ent-row"><span class="fname">exists</span><span class="ftype">boolean</span></div>
+    </div>
+    <div class="ent-events"><div class="lbl">Events</div>
+      <span class="ent-ev">Imported</span>
+      <span class="ent-ev">Activated</span>
+      <span class="ent-ev">Deactivated</span>
+    </div>
+  </div>
+  <div class="ent-box">
+    <div class="ent-title">ControlClaimsEntity <span style="font-weight:400;font-size:10px;color:#888">&middot; ControlClaims</span></div>
+    <div class="ent-rows">
+      <div class="ent-row"><span class="fname">acceptance</span><span class="ftype">Acceptance</span></div>
+      <div class="ent-row"><span class="fname">assertion</span><span class="ftype">Assertion</span></div>
+      <div class="ent-row"><span class="fname">earlier</span><span class="ftype">List&lt;Assertion&gt;</span></div>
+    </div>
+    <div class="ent-events"><div class="lbl">Events</div>
+      <span class="ent-ev">Accepted</span>
+      <span class="ent-ev">AcceptanceWithdrawn</span>
+      <span class="ent-ev">Asserted</span>
+    </div>
+  </div>
+  <div class="ent-box">
+    <div class="ent-title">DeliveryEntity <span style="font-weight:400;font-size:10px;color:#888">&middot; DeliveryEntity.State</span></div>
+    <div class="ent-rows">
+      <div class="ent-row"><span class="fname">delivery</span><span class="ftype">Delivery</span></div>
+    </div>
+    <div class="ent-events"><div class="lbl">Events</div>
+      <span class="ent-ev">Recorded</span>
+    </div>
+  </div>
+  <div class="ent-box">
+    <div class="ent-title">DocumentEntity <span style="font-weight:400;font-size:10px;color:#888">&middot; TrustDocument.Document</span></div>
+    <div class="ent-rows">
+      <div class="ent-row"><span class="fname">name</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">versions</span><span class="ftype">List&lt;Version&gt;</span></div>
+    </div>
+    <div class="ent-events"><div class="lbl">Events</div>
+      <span class="ent-ev">Registered</span>
+    </div>
+  </div>
+  <div class="ent-box">
+    <div class="ent-title">DomainConfigEntity <span style="font-weight:400;font-size:10px;color:#888">&middot; DomainConfig</span></div>
+    <div class="ent-rows">
+      <div class="ent-row"><span class="fname">domains</span><span class="ftype">Map&lt;String, DataDomain&gt;</span></div>
+      <div class="ent-row"><span class="fname">joins</span><span class="ftype">List&lt;JoinRule&gt;</span></div>
+    </div>
+    <div class="ent-events"><div class="lbl">Events</div>
+      <span class="ent-ev">DomainSet</span>
+      <span class="ent-ev">DomainRemoved</span>
+      <span class="ent-ev">JoinApproved</span>
+      <span class="ent-ev">JoinRevoked</span>
+    </div>
+  </div>
+  <div class="ent-box">
+    <div class="ent-title">EvidenceEntity <span style="font-weight:400;font-size:10px;color:#888">&middot; EvidenceEntity.State</span></div>
+    <div class="ent-rows">
+      <div class="ent-row"><span class="fname">evidence</span><span class="ftype">Evidence</span></div>
+    </div>
+    <div class="ent-events"><div class="lbl">Events</div>
+      <span class="ent-ev">Recorded</span>
+    </div>
+  </div>
+  <div class="ent-box">
+    <div class="ent-title">HumanEventEntity <span style="font-weight:400;font-size:10px;color:#888">&middot; HumanEvent</span></div>
+    <div class="ent-rows">
+      <div class="ent-row"><span class="fname">exists</span><span class="ftype">boolean</span></div>
+      <div class="ent-row"><span class="fname">id</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">orgId</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">controlId</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">catalogDigest</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">policy</span><span class="ftype">HumanPolicy</span></div>
+      <div class="ent-row"><span class="fname">subjectKind</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">summary</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">assistantId</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">detail</span><span class="ftype">Map&lt;String, String&gt;</span></div>
+      <div class="ent-row"><span class="fname">detector</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">rule</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">reason</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">question</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">checks</span><span class="ftype">List&lt;String&gt;</span></div>
+      <div class="ent-row"><span class="fname">proposedBy</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">raisedAt</span><span class="ftype">long</span></div>
+      <div class="ent-row"><span class="fname">dueAt</span><span class="ftype">long</span></div>
+      <div class="ent-row"><span class="fname">state</span><span class="ftype">HumanState</span></div>
+      <div class="ent-row"><span class="fname">level</span><span class="ftype">int</span></div>
+      <div class="ent-row"><span class="fname">holder</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">holderRoles</span><span class="ftype">List&lt;String&gt;</span></div>
+      <div class="ent-row"><span class="fname">claimedAt</span><span class="ftype">long</span></div>
+      <div class="ent-row"><span class="fname">claimExpiresAt</span><span class="ftype">long</span></div>
+      <div class="ent-row"><span class="fname">decisions</span><span class="ftype">List&lt;HumanDecision&gt;</span></div>
+      <div class="ent-row"><span class="fname">rehearsals</span><span class="ftype">List&lt;HumanDecision&gt;</span></div>
+      <div class="ent-row"><span class="fname">outcomeAction</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">slaOutcome</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">applied</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">applyError</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">closedAt</span><span class="ftype">long</span></div>
+      <div class="ent-row"><span class="fname">history</span><span class="ftype">List&lt;Step&gt;</span></div>
+    </div>
+    <div class="ent-events"><div class="lbl">Events</div>
+      <span class="ent-ev">Raised</span>
+      <span class="ent-ev">Claimed</span>
+      <span class="ent-ev">Released</span>
+      <span class="ent-ev">Decided</span>
+      <span class="ent-ev">Rehearsed</span>
+      <span class="ent-ev">Escalated</span>
+      <span class="ent-ev">SentBack</span>
+      <span class="ent-ev">Resubmitted</span>
+      <span class="ent-ev">Extended</span>
+      <span class="ent-ev">Withdrawn</span>
+      <span class="ent-ev">TimedOut</span>
+      <span class="ent-ev">Applied</span>
+      <span class="ent-ev">ApplyFailed</span>
+    </div>
+  </div>
+  <div class="ent-box">
+    <div class="ent-title">IdentityEntity <span style="font-weight:400;font-size:10px;color:#888">&middot; IdentityCluster</span></div>
+    <div class="ent-rows">
+      <div class="ent-row"><span class="fname">orgId</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">rule</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">key</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">confidence</span><span class="ftype">double</span></div>
+      <div class="ent-row"><span class="fname">members</span><span class="ftype">List&lt;Member&gt;</span></div>
+      <div class="ent-row"><span class="fname">review</span><span class="ftype">Review</span></div>
+      <div class="ent-row"><span class="fname">exists</span><span class="ftype">boolean</span></div>
+    </div>
+    <div class="ent-events"><div class="lbl">Events</div>
+      <span class="ent-ev">MemberAdded</span>
+      <span class="ent-ev">MemberUnlinked</span>
+      <span class="ent-ev">ReviewConfirmed</span>
+      <span class="ent-ev">ReviewRejected</span>
+    </div>
+  </div>
+  <div class="ent-box">
+    <div class="ent-title">IntegrityChainEntity <span style="font-weight:400;font-size:10px;color:#888">&middot; IntegrityChainEntity.Chain</span></div>
+    <div class="ent-rows">
+      <div class="ent-row"><span class="fname">count</span><span class="ftype">long</span></div>
+      <div class="ent-row"><span class="fname">head</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">recent</span><span class="ftype">List&lt;Integrity.Link&gt;</span></div>
+    </div>
+    <div class="ent-events"><div class="lbl">Events</div>
+      <span class="ent-ev">Chained</span>
+    </div>
+  </div>
+  <div class="ent-box">
+    <div class="ent-title">MonitorEntity <span style="font-weight:400;font-size:10px;color:#888">&middot; Monitor</span></div>
+    <div class="ent-rows">
+      <div class="ent-row"><span class="fname">orgId</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">monitorId</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">definition</span><span class="ftype">MonitorDefinition</span></div>
+      <div class="ent-row"><span class="fname">version</span><span class="ftype">int</span></div>
+      <div class="ent-row"><span class="fname">enabled</span><span class="ftype">boolean</span></div>
+      <div class="ent-row"><span class="fname">known</span><span class="ftype">Map&lt;String, String&gt;</span></div>
+      <div class="ent-row"><span class="fname">runCount</span><span class="ftype">int</span></div>
+      <div class="ent-row"><span class="fname">lastRunAt</span><span class="ftype">long</span></div>
+      <div class="ent-row"><span class="fname">lastRunNote</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">lastPlan</span><span class="ftype">RunPlan</span></div>
+      <div class="ent-row"><span class="fname">exists</span><span class="ftype">boolean</span></div>
+    </div>
+    <div class="ent-events"><div class="lbl">Events</div>
+      <span class="ent-ev">Created</span>
+      <span class="ent-ev">DefinitionUpdated</span>
+      <span class="ent-ev">EnabledChanged</span>
+      <span class="ent-ev">RunRecorded</span>
+    </div>
+  </div>
+  <div class="ent-box">
+    <div class="ent-title">ChangeFeedEntity <span style="font-weight:400;font-size:10px;color:#888">&middot; Done</span></div>
+    <div class="ent-rows">
+      <div class="ent-row"><span class="fname">state</span><span class="ftype">Done</span></div>
+    </div>
+  </div>
+  <div class="ent-box">
+    <div class="ent-title">HaltEntity <span style="font-weight:400;font-size:10px;color:#888">&middot; HaltEntity.State</span></div>
+    <div class="ent-rows">
+      <div class="ent-row"><span class="fname">halted</span><span class="ftype">boolean</span></div>
+      <div class="ent-row"><span class="fname">since</span><span class="ftype">long</span></div>
+      <div class="ent-row"><span class="fname">by</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">reason</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">eventId</span><span class="ftype">String</span></div>
+    </div>
+  </div>
+  <div class="ent-box">
+    <div class="ent-title">NotificationRouteEntity <span style="font-weight:400;font-size:10px;color:#888">&middot; NotificationRouteEntity.State</span></div>
+    <div class="ent-rows">
+      <div class="ent-row"><span class="fname">exists</span><span class="ftype">boolean</span></div>
+      <div class="ent-row"><span class="fname">enabled</span><span class="ftype">boolean</span></div>
+      <div class="ent-row"><span class="fname">url</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">format</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">credentialRef</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">by</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">at</span><span class="ftype">long</span></div>
+    </div>
+  </div>
+  <div class="ent-box">
+    <div class="ent-title">RefreshStatusEntity <span style="font-weight:400;font-size:10px;color:#888">&middot; RefreshStatus</span></div>
+    <div class="ent-rows">
+      <div class="ent-row"><span class="fname">orgId</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">packName</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">entityType</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">outcome</span><span class="ftype">Outcome</span></div>
+      <div class="ent-row"><span class="fname">refreshedAt</span><span class="ftype">long</span></div>
+      <div class="ent-row"><span class="fname">stored</span><span class="ftype">int</span></div>
+      <div class="ent-row"><span class="fname">skippedWithoutId</span><span class="ftype">int</span></div>
+      <div class="ent-row"><span class="fname">packHash</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">warnings</span><span class="ftype">List&lt;String&gt;</span></div>
+      <div class="ent-row"><span class="fname">exists</span><span class="ftype">boolean</span></div>
+    </div>
+  </div>
+  <div class="ent-box">
+    <div class="ent-title">WaiverEntity <span style="font-weight:400;font-size:10px;color:#888">&middot; WaiverEntity.State</span></div>
+    <div class="ent-rows">
+      <div class="ent-row"><span class="fname">exists</span><span class="ftype">boolean</span></div>
+      <div class="ent-row"><span class="fname">reason</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">by</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">authority</span><span class="ftype">String</span></div>
+      <div class="ent-row"><span class="fname">grantedAt</span><span class="ftype">long</span></div>
+      <div class="ent-row"><span class="fname">waivedUntil</span><span class="ftype">long</span></div>
+      <div class="ent-row"><span class="fname">lifted</span><span class="ftype">boolean</span></div>
+    </div>
+  </div>
+  </div>
+  </div>
+</details>
+
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#F5C518"></span><span class="sec-title">Interaction diagram</span><span class="sec-hint">A pushed change to a record, from the source system to the watchers; a webhook takes the same path through StreamEndpoint</span></summary>
+  <div class="sec-body">
+  <svg viewBox="0 0 980 320" width="100%" role="img"
+       aria-labelledby="contextlayer-interaction-title contextlayer-interaction-desc"
+       font-family="'SF Mono','Consolas',monospace">
+    <title id="contextlayer-interaction-title">A pushed change reaches the store and the watchers</title>
+    <desc id="contextlayer-interaction-desc">A claims system publishes a record change on its stream; the consumer writes it to the entity store, records the refresh status, and publishes a notice to the change feed.</desc>
+        <g stroke="#2a2a2a"><line x1="108" y1="48" x2="108" y2="312"/><line x1="300" y1="48" x2="300" y2="312"/><line x1="492" y1="48" x2="492" y2="312"/><line x1="684" y1="48" x2="684" y2="312"/><line x1="876" y1="48" x2="876" y2="312"/></g>
+    <g text-anchor="middle">
+      <line x1="108" y1="96" x2="292" y2="96" stroke="#8a8a8a"/>
+      <polygon points="300,96 292,92 292,100" fill="#8a8a8a"/>
+      <rect class="emask" x="176" y="76" width="56" height="12" rx="2" fill="#0A0A0A"/>
+      <text x="204" y="85" fill="#aaa" font-size="8" letter-spacing="0.06em">CHANGE</text>
+    </g>
+    <g text-anchor="middle">
+      <line x1="300" y1="144" x2="484" y2="144" stroke="#F5C518"/>
+      <polygon points="492,144 484,140 484,148" fill="#F5C518"/>
+      <rect class="emask" x="356" y="124" width="72" height="12" rx="2" fill="#0A0A0A"/>
+      <text x="392" y="133" fill="#aaa" font-size="8" letter-spacing="0.06em">APPLY CHANGE</text>
+    </g>
+    <g text-anchor="middle">
+      <line x1="300" y1="192" x2="676" y2="192" stroke="#8a8a8a"/>
+      <polygon points="684,192 676,188 676,196" fill="#8a8a8a"/>
+      <rect class="emask" x="580" y="172" width="64" height="12" rx="2" fill="#0A0A0A"/>
+      <text x="612" y="181" fill="#aaa" font-size="8" letter-spacing="0.06em">RECORD OK</text>
+    </g>
+    <g text-anchor="middle">
+      <line x1="300" y1="240" x2="868" y2="240" stroke="#F5C518"/>
+      <polygon points="876,240 868,236 868,244" fill="#F5C518"/>
+      <rect class="emask" x="560" y="220" width="56" height="12" rx="2" fill="#0A0A0A"/>
+      <text x="588" y="229" fill="#aaa" font-size="8" letter-spacing="0.06em">PUBLISH</text>
+    </g>
+    <g font-size="11" font-weight="700" text-anchor="middle">
+      <rect x="28" y="16" width="160" height="32" rx="4" fill="#141414" stroke="#666" stroke-dasharray="4 3"/><text x="108" y="36" fill="#999">claims-system</text>
+      <rect x="220" y="16" width="160" height="32" rx="4" fill="#141414" stroke="#8a8a8a"/><text x="300" y="36" fill="#fff">EntityChangeConsumer</text>
+      <rect x="412" y="16" width="160" height="32" rx="4" fill="#141414" stroke="#666" stroke-dasharray="4 3"/><text x="492" y="36" fill="#999">Neo4j entity store</text>
+      <rect x="604" y="16" width="160" height="32" rx="4" fill="#04180A" stroke="#28C840"/><text x="684" y="36" fill="#28C840">RefreshStatusEntity</text>
+      <rect x="796" y="16" width="160" height="32" rx="4" fill="#04180A" stroke="#28C840"/><text x="876" y="36" fill="#28C840">ChangeFeedEntity</text>
+    </g>
+
+  </svg>
+  <div class="legend">
+    <div class="legend-item"><span class="legend-bar" style="background:#F5C518"></span>primary path</div>
+    <div class="legend-item"><span class="legend-bar" style="background:#8a8a8a"></span>secondary call</div>
+    <div class="legend-item"><span class="legend-bar" style="background:#6a6a6a;height:0;border-top:1px dashed #6a6a6a"></span>reply / projection</div>
+  </div>
+  </div>
+</details>
+
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#F5C518"></span><span class="sec-title">Component graph</span><span class="sec-hint">Overview of the core path: connectors, evidence, claims and the change feed. The evidence chain is drawn in detail below</span></summary>
+  <div class="sec-body">
+  <svg class="cg" viewBox="0 0 980 420" width="100%" role="img"
+       aria-labelledby="contextlayer-graph-title contextlayer-graph-desc"
+       font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+    <title id="contextlayer-graph-title">Core components and how they connect</title>
+    <desc id="contextlayer-graph-desc">Three endpoints reach four entities and two views: connector packs feed their view, evidence feeds its view, and the stream endpoint reads the change feed.</desc>
+    <defs>
+      <marker id="contextlayer-a" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#8a8a8a"/>
+      </marker>
+      <marker id="contextlayer-a-evt" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#F5C518"/>
+      </marker>
+    </defs>
+        <path class="edge" d="M 452 112 V 144 Q 452 152 444 152 H 368 Q 360 152 360 160 V 188" marker-end="url(#contextlayer-a)"/>
+    <path class="edge" d="M 508 112 V 144 Q 508 152 516 152 H 592 Q 600 152 600 160 V 188" marker-end="url(#contextlayer-a)"/>
+    <line class="edge" x1="120" y1="112" x2="120" y2="188" marker-end="url(#contextlayer-a)"/>
+    <line class="edge async" x1="840" y1="112" x2="840" y2="188" marker-end="url(#contextlayer-a)"/>
+    <line class="edge evt" x1="120" y1="240" x2="120" y2="316" marker-end="url(#contextlayer-a-evt)"/>
+    <line class="edge evt" x1="600" y1="240" x2="600" y2="316" marker-end="url(#contextlayer-a-evt)"/>
+    <text class="band" x="24" y="48">Edge</text>
+    <line x1="24" y1="56" x2="956" y2="56" stroke="#1C1C1C" stroke-width="1"/>
+    <text class="band" x="24" y="176">Domain</text>
+    <line x1="24" y1="184" x2="956" y2="184" stroke="#1C1C1C" stroke-width="1"/>
+    <text class="band" x="24" y="304">Read model</text>
+    <line x1="24" y1="312" x2="956" y2="312" stroke="#1C1C1C" stroke-width="1"/>
+    <g class="n-ep"><rect class="box" x="40" y="64" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="52" y="81">HTTP ENDPOINT</text><text class="nn" x="52" y="100">ContextLayerEndpoint</text></g>
+    <g class="n-ep"><rect class="box" x="400" y="64" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="412" y="81">HTTP ENDPOINT</text><text class="nn" x="412" y="100">GovernanceEndpoint</text></g>
+    <g class="n-ep"><rect class="box" x="760" y="64" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="772" y="81">HTTP ENDPOINT</text><text class="nn" x="772" y="100">StreamEndpoint</text></g>
+    <g class="n-ese"><rect class="box" x="40" y="192" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="52" y="209">EVENT SOURCED ENTITY</text><text class="nn" x="52" y="228">ConnectorPackEntity</text></g>
+    <g class="n-ese"><rect class="box" x="280" y="192" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="292" y="209">EVENT SOURCED ENTITY</text><text class="nn" x="292" y="228">ControlClaimsEntity</text></g>
+    <g class="n-ese"><rect class="box" x="520" y="192" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="532" y="209">EVENT SOURCED ENTITY</text><text class="nn" x="532" y="228">EvidenceEntity</text></g>
+    <g class="n-kve"><rect class="box" x="760" y="192" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="772" y="209">KEY VALUE ENTITY</text><text class="nn" x="772" y="228">ChangeFeedEntity</text></g>
+    <g class="n-view"><rect class="box" x="40" y="320" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="52" y="337">VIEW</text><text class="nn" x="52" y="356">ConnectorPackView</text></g>
+    <g class="n-view"><rect class="box" x="520" y="320" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="532" y="337">VIEW</text><text class="nn" x="532" y="356">EvidenceView</text></g>
+
+  </svg>
+  <div class="legend">
+    <div class="legend-item"><span class="legend-bar" style="background:#fff"></span>Endpoint</div>
+    <div class="legend-item"><span class="legend-bar" style="background:#F5C518"></span>Event Sourced Entity</div>
+    <div class="legend-item"><span class="legend-bar" style="background:#28C840"></span>Key Value Entity</div>
+    <div class="legend-item"><span class="legend-bar" style="background:#A855F7"></span>View</div>
+    <div class="legend-item"><span class="legend-bar" style="background:#7EC8E3"></span>Workflow</div>
+    <div class="legend-item"><span class="legend-bar" style="background:#FF6B6B"></span>Agent</div>
+  </div>
+  </div>
+</details>
+
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#F5C518"></span><span class="sec-title">Evidence chain</span><span class="sec-hint">Who writes evidence and how each record is chained; no other diagram shows the writers or the chain</span></summary>
+  <div class="sec-body">
+  <svg class="cg" viewBox="0 0 980 548" width="100%" role="img"
+       aria-labelledby="contextlayer-chain-title contextlayer-chain-desc"
+       font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+    <title id="contextlayer-chain-title">Evidence is recorded, projected and chained</title>
+    <desc id="contextlayer-chain-desc">Two workflows and a consumer record evidence; each record is projected into a view and chained by a consumer that writes the chain head and a link.</desc>
+    <defs>
+      <marker id="contextlayer-chain-a" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#8a8a8a"/>
+      </marker>
+      <marker id="contextlayer-chain-a-evt" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#F5C518"/>
+      </marker>
+    </defs>
+    <path class="edge" d="M 200 112 V 144 Q 200 152 208 152 H 432 Q 440 152 440 160 V 188" marker-end="url(#contextlayer-chain-a)"/>
+    <line class="edge" x1="480" y1="112" x2="480" y2="188" marker-end="url(#contextlayer-chain-a)"/>
+    <path class="edge" d="M 760 112 V 144 Q 760 152 752 152 H 528 Q 520 152 520 160 V 188" marker-end="url(#contextlayer-chain-a)"/>
+    <path class="edge evt" d="M 452 240 V 272 Q 452 280 444 280 H 288 Q 280 280 280 288 V 316" marker-end="url(#contextlayer-chain-a-evt)"/>
+    <path class="edge evt" d="M 508 240 V 272 Q 508 280 516 280 H 672 Q 680 280 680 288 V 316" marker-end="url(#contextlayer-chain-a-evt)"/>
+    <path class="edge" d="M 252 368 V 400 Q 252 408 244 408 H 128 Q 120 408 120 416 V 444" marker-end="url(#contextlayer-chain-a)"/>
+    <path class="edge" d="M 308 368 V 400 Q 308 408 316 408 H 432 Q 440 408 440 416 V 444" marker-end="url(#contextlayer-chain-a)"/>
+    <text class="band" x="24" y="48">Writers</text>
+    <line x1="24" y1="56" x2="956" y2="56" stroke="#1C1C1C" stroke-width="1"/>
+    <text class="band" x="24" y="176">Record</text>
+    <line x1="24" y1="184" x2="956" y2="184" stroke="#1C1C1C" stroke-width="1"/>
+    <text class="band" x="24" y="304">Projection and chaining</text>
+    <line x1="24" y1="312" x2="956" y2="312" stroke="#1C1C1C" stroke-width="1"/>
+    <text class="band" x="24" y="432">Chain</text>
+    <line x1="24" y1="440" x2="956" y2="440" stroke="#1C1C1C" stroke-width="1"/>
+    <g class="n-wf"><rect class="box" x="120" y="64" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="132" y="81">WORKFLOW</text><text class="nn" x="132" y="100">ActionWorkflow</text></g>
+    <g class="n-wf"><rect class="box" x="400" y="64" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="412" y="81">WORKFLOW</text><text class="nn" x="412" y="100">PlaybookWorkflow</text></g>
+    <g class="n-con"><rect class="box" x="680" y="64" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="692" y="81">CONSUMER</text><text class="nn" x="692" y="100">HumanEvidenceConsumer</text></g>
+    <g class="n-ese"><rect class="box" x="400" y="192" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="412" y="209">EVENT SOURCED ENTITY</text><text class="nn" x="412" y="228">EvidenceEntity</text></g>
+    <g class="n-con"><rect class="box" x="200" y="320" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="212" y="337">CONSUMER</text><text class="nn" x="212" y="356">IntegrityConsumer</text></g>
+    <g class="n-view"><rect class="box" x="600" y="320" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="612" y="337">VIEW</text><text class="nn" x="612" y="356">EvidenceView</text></g>
+    <g class="n-ese"><rect class="box" x="40" y="448" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="52" y="465">EVENT SOURCED ENTITY</text><text class="nn" x="52" y="484">IntegrityChainEntity</text></g>
+    <g class="n-ese"><rect class="box" x="360" y="448" width="160" height="48" rx="6" stroke-width="1"/><text class="nt" x="372" y="465">EVENT SOURCED ENTITY</text><text class="nn" x="372" y="484">ChainLinkEntity</text></g>
+  </svg>
+  <div class="legend">
+    <div class="legend-item"><span class="legend-bar" style="background:#F5C518"></span>Event Sourced Entity</div>
+    <div class="legend-item"><span class="legend-bar" style="background:#A855F7"></span>View</div>
+    <div class="legend-item"><span class="legend-bar" style="background:#7EC8E3"></span>Workflow</div>
+    <div class="legend-item"><span class="legend-bar" style="background:#8a8a8a"></span>Consumer</div>
+  </div>
+  </div>
+</details>
+
+
+<div class="section-label">Components</div>
+
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#fff"></span><span class="sec-title">CaseEndpoint</span><span class="sec-type">HTTP Endpoint</span><span class="sec-id mono">/v1/context/cases</span><span class="sec-hint">5 routes</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Cases opened by monitors: the list, one case with its timeline, and closing or annotating it.</p>
+    <div class="code"><div class="code-bar mono">CaseEndpoint.java</div>
+    <div class="code-body mono">GET    /v1/context/cases/status/{status}
+GET    /v1/context/cases/{caseId}
+POST   /v1/context/cases/{caseId}/resolve
+POST   /v1/context/cases/{caseId}/dismiss
+POST   /v1/context/cases/{caseId}/annotate</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#fff"></span><span class="sec-title">ContextLayerEndpoint</span><span class="sec-type">HTTP Endpoint</span><span class="sec-id mono">/v1/context</span><span class="sec-hint">25 routes</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">The first HTTP surface: assistants and releases, actions with approvals, and identity linking.</p>
+    <div class="code"><div class="code-bar mono">ContextLayerEndpoint.java</div>
+    <div class="code-body mono">POST   /v1/context/assistants/{assistantId}
+GET    /v1/context/assistants/{assistantId}
+POST   /v1/context/assistants/{assistantId}/releases
+POST   /v1/context/assistants/{assistantId}/releases/{releaseId}/approve
+POST   /v1/context/assistants/{assistantId}/stage
+POST   /v1/context/assistants/{assistantId}/actions/{actionKey}
+GET    /v1/context/assistants/{assistantId}/actions/{actionKey}
+GET    /v1/context/assistants/{assistantId}/actions
+GET    /v1/context/approvals
+POST   /v1/context/assistants/{assistantId}/actions/{actionKey}/approve
+POST   /v1/context/assistants/{assistantId}/actions/{actionKey}/reject
+POST   /v1/context/assistants/{assistantId}/actions/{actionKey}/resolve
+POST   /v1/context/connectors/{packName}/versions
+POST   /v1/context/connectors/{packName}/versions/{hash}/activate
+POST   /v1/context/connectors/{packName}/deactivate
+GET    /v1/context/connectors/{packName}
+POST   /v1/context/records
+GET    /v1/context/identity/review
+POST   /v1/context/identity/open
+POST   /v1/context/identity/confirm
+POST   /v1/context/identity/reject
+POST   /v1/context/questions
+POST   /v1/context/questions/draft
+POST   /v1/context/connectors/{packName}/entities/{entityType}/refresh
+GET    /v1/context/connectors/{packName}/entities/{entityType}/refresh-status</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#fff"></span><span class="sec-title">DomainEndpoint</span><span class="sec-type">HTTP Endpoint</span><span class="sec-id mono">/v1/context</span><span class="sec-hint">5 routes</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Data domains: groups of entity types that are granted to roles and people together, and the approved links between them. A project with none allows every question; with one, a question may read only what the asker is granted (see DomainConfig).</p>
+    <div class="code"><div class="code-bar mono">DomainEndpoint.java</div>
+    <div class="code-body mono">GET    /v1/context/domains
+POST   /v1/context/domains/{name}
+POST   /v1/context/domains/{name}/remove
+POST   /v1/context/join-rules
+POST   /v1/context/join-rules/revoke</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#fff"></span><span class="sec-title">GovernanceEndpoint</span><span class="sec-type">HTTP Endpoint</span><span class="sec-id mono">/v1/context/governance</span><span class="sec-hint">17 routes</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">What the service enforces and what shows it did: the control catalog with its digest, the evidence each control produced, and where each control stands. Evidence is exported as it was recorded; nothing here can change it.</p>
+    <div class="code"><div class="code-bar mono">GovernanceEndpoint.java</div>
+    <div class="code-body mono">GET    /v1/context/governance/controls
+GET    /v1/context/governance/evidence
+GET    /v1/context/governance/compliance
+POST   /v1/context/governance/ask
+GET    /v1/context/governance/integrity
+GET    /v1/context/governance/rte
+GET    /v1/context/governance/record-stores
+GET    /v1/context/governance/controls/{controlId}/claims
+POST   /v1/context/governance/controls/{controlId}/acceptance
+POST   /v1/context/governance/controls/{controlId}/acceptance/withdraw
+POST   /v1/context/governance/controls/{controlId}/assertion
+POST   /v1/context/governance/controls/{controlId}/documents
+POST   /v1/context/governance/documents/{name}
+GET    /v1/context/governance/documents
+GET    /v1/context/governance/documents/{name}
+POST   /v1/context/governance/controls/{controlId}/waiver
+POST   /v1/context/governance/controls/{controlId}/waiver/lift</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#fff"></span><span class="sec-title">MonitorEndpoint</span><span class="sec-type">HTTP Endpoint</span><span class="sec-id mono">/v1/context/monitors</span><span class="sec-hint">6 routes</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Saved questions that run on a schedule and open cases for rows that newly match.</p>
+    <div class="code"><div class="code-bar mono">MonitorEndpoint.java</div>
+    <div class="code-body mono">POST   /v1/context/monitors/{monitorId}
+POST   /v1/context/monitors/{monitorId}/definition
+POST   /v1/context/monitors/{monitorId}/enable
+POST   /v1/context/monitors/{monitorId}/disable
+POST   /v1/context/monitors/{monitorId}/run
+GET    /v1/context/monitors/{monitorId}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#fff"></span><span class="sec-title">NotificationEndpoint</span><span class="sec-type">HTTP Endpoint</span><span class="sec-id mono">/v1/context</span><span class="sec-hint">5 routes</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Where the people a case or an approval is routed to are told. A route is a name (the "route to" of a monitor, or role:approver) and a web address that receives a JSON post, or a Slack incoming webhook. Setting one up sends records' existence, never their contents, to an outside address, so it needs the admin role and the address must be on the egress list.</p>
+    <div class="code"><div class="code-bar mono">NotificationEndpoint.java</div>
+    <div class="code-body mono">POST   /v1/context/routes/{name}
+GET    /v1/context/routes/{name}
+POST   /v1/context/routes/{name}/disable
+POST   /v1/context/routes/{name}/test
+GET    /v1/context/notifications</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#fff"></span><span class="sec-title">OversightEndpoint</span><span class="sec-type">HTTP Endpoint</span><span class="sec-id mono">/v1/context/oversight</span><span class="sec-hint">16 routes</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Serves the console's human events contract (ai-console/docs/handoff/contracts/human.md): the situations a person must judge, and the verbs to claim, decide, escalate, send back and withdraw them. The organization is the one the caller's token belongs to.</p>
+    <div class="code"><div class="code-bar mono">OversightEndpoint.java</div>
+    <div class="code-body mono">GET    /v1/context/oversight/events
+GET    /v1/context/oversight/events/{id}
+GET    /v1/context/oversight/halts
+GET    /v1/context/oversight/standing
+POST   /v1/context/oversight/events/{id}/claim
+POST   /v1/context/oversight/events/{id}/release
+POST   /v1/context/oversight/events/{id}/decision
+POST   /v1/context/oversight/events/{id}/escalate
+POST   /v1/context/oversight/events/{id}/send-back
+POST   /v1/context/oversight/events/{id}/resubmit
+POST   /v1/context/oversight/events/{id}/withdraw
+POST   /v1/context/oversight/events/{id}/extend
+POST   /v1/context/oversight/events/{id}/reopen
+POST   /v1/context/oversight/flags
+POST   /v1/context/oversight/halts
+POST   /v1/context/oversight/standing/{id}/revoke</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#fff"></span><span class="sec-title">OverviewEndpoint</span><span class="sec-type">HTTP Endpoint</span><span class="sec-id mono">/v1/context</span><span class="sec-hint">2 routes</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Lists for screens that show everything an organization has: connectors with their health, and assistants.</p>
+    <div class="code"><div class="code-bar mono">OverviewEndpoint.java</div>
+    <div class="code-body mono">GET    /v1/context/connectors
+GET    /v1/context/assistants</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#fff"></span><span class="sec-title">StreamEndpoint</span><span class="sec-type">HTTP Endpoint</span><span class="sec-id mono">/v1/context/streams</span><span class="sec-hint">3 routes</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Where a system that is not an Akka service pushes changes to its records, such as a webhook from a third party. The changes mean the same as the ones an Akka service publishes as a stream.</p>
+    <div class="code"><div class="code-bar mono">StreamEndpoint.java</div>
+    <div class="code-body mono">POST   /v1/context/streams/changes
+GET    /v1/context/streams/changes
+POST   /v1/context/streams/watch</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#F5C518"></span><span class="sec-title">ActionLedgerEntity</span><span class="sec-type">Event Sourced Entity</span><span class="sec-id mono">action-ledger</span><span class="sec-hint">The idempotent record of one action.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">The idempotent record of one action. The id is ScopedId.of(orgId, assistantId, actionKey), so repeating a request with the same key returns the existing entry and records nothing new. Entities never call external systems; ActionWorkflow does, and records the outcome here.</p>
+    <div class="code"><div class="code-bar mono">ActionLedgerEntity.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"action-ledger"</span>)
+<span class="kw">public</span> <span class="kw">class</span> ActionLedgerEntity <span class="kw">extends</span> EventSourcedEntity&lt;ActionRecord, ActionEvent&gt; {
+
+  <span class="kw">public</span> <span class="kw">record</span> Request(
+      String orgId,
+      String assistantId,
+      String actionKey,
+      String actionType,
+      String payload,
+      RiskClass risk,
+      AssistantStage stage,
+      String releaseId,
+      boolean catalogued,
+      boolean halted) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Approve(String approvedBy) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Reject(String rejectedBy, String reason) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Finish(String detail) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> ResolveUnknown(String resolvedBy, boolean succeeded, String note) { ... }
+  <span class="kw">public</span> ActionRecord emptyState() { ... }
+  <span class="kw">public</span> Effect&lt;ActionRecord&gt; request(Request command) { ... }
+  <span class="kw">public</span> Effect&lt;ActionRecord&gt; approve(Approve command) { ... }
+<span class="cm">  // 8 more</span>
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#F5C518"></span><span class="sec-title">AssistantEntity</span><span class="sec-type">Event Sourced Entity</span><span class="sec-id mono">assistant</span><span class="sec-hint">Entity id: ScopedId.of(orgId, assistantId).</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Entity id: ScopedId.of(orgId, assistantId).</p>
+    <div class="code"><div class="code-bar mono">AssistantEntity.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"assistant"</span>)
+<span class="kw">public</span> <span class="kw">class</span> AssistantEntity <span class="kw">extends</span> EventSourcedEntity&lt;Assistant, AssistantEvent&gt; {
+
+  <span class="kw">public</span> <span class="kw">record</span> Create(String orgId, String assistantId, String purpose, String owner) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> AddRelease(String definition, String addedBy) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> ApproveRelease(String releaseId, String approvedBy) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> ChangeStage(AssistantStage stage, String changedBy) { ... }
+  <span class="kw">public</span> Assistant emptyState() { ... }
+  <span class="kw">public</span> Effect&lt;Done&gt; create(Create command) { ... }
+  <span class="kw">public</span> Effect&lt;String&gt; addRelease(AddRelease command) { ... }
+  <span class="kw">public</span> Effect&lt;Done&gt; approveRelease(ApproveRelease command) { ... }
+<span class="cm">  // 3 more</span>
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#F5C518"></span><span class="sec-title">CaseEntity</span><span class="sec-type">Event Sourced Entity</span><span class="sec-id mono">case</span><span class="sec-hint">Entity id: ScopedId.of(orgId, monitorId, hashOfRowKey, "r"), derived by the monitor.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Entity id: ScopedId.of(orgId, monitorId, hashOfRowKey, "r"), derived by the monitor.</p>
+    <div class="code"><div class="code-bar mono">CaseEntity.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"case"</span>)
+<span class="kw">public</span> <span class="kw">class</span> CaseEntity <span class="kw">extends</span> EventSourcedEntity&lt;CaseFile, CaseEvent&gt; {
+
+  <span class="kw">public</span> <span class="kw">record</span> Open(
+      String orgId,
+      String caseId,
+      String monitorId,
+      int monitorVersion,
+      String key,
+      Map&lt;String, Object&gt; evidence,
+      List&lt;String&gt; sourceNotes,
+      String routeTo,
+      String assistantId,
+      long at) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Close(String by, String note, long at) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Annotate(String actor, String text, long at) { ... }
+  <span class="kw">public</span> CaseFile emptyState() { ... }
+  <span class="kw">public</span> Effect&lt;Done&gt; open(Open command) { ... }
+  <span class="kw">public</span> Effect&lt;Done&gt; noteNoLongerMatching(Long at) { ... }
+  <span class="kw">public</span> Effect&lt;CaseFile&gt; resolve(Close command) { ... }
+  <span class="kw">public</span> Effect&lt;CaseFile&gt; dismiss(Close command) { ... }
+<span class="cm">  // 3 more</span>
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#F5C518"></span><span class="sec-title">ChainLinkEntity</span><span class="sec-type">Event Sourced Entity</span><span class="sec-id mono">chain-link</span><span class="sec-hint">One link of a project's evidence chain, held by its position so it can be read directly.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">One link of a project's evidence chain, held by its position so it can be read directly. Id: ScopedId.of(orgId, "link", seq). A link is written once. Writing the same link again changes nothing; writing a different one for the same position is refused.</p>
+    <div class="code"><div class="code-bar mono">ChainLinkEntity.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"chain-link"</span>)
+<span class="kw">public</span> <span class="kw">class</span> ChainLinkEntity <span class="kw">extends</span> EventSourcedEntity&lt;ChainLinkEntity.State, ChainLinkEntity.Event&gt; {
+
+  <span class="kw">public</span> <span class="kw">record</span> State(Integrity.Link link) { ... }
+  <span class="kw">public</span> State emptyState() { ... }
+  <span class="kw">public</span> ReadOnlyEffect&lt;State&gt; get() { ... }
+  <span class="kw">public</span> Effect&lt;State&gt; write(Integrity.Link link) { ... }
+  <span class="kw">public</span> State applyEvent(Event event) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#F5C518"></span><span class="sec-title">ConnectorPackEntity</span><span class="sec-type">Event Sourced Entity</span><span class="sec-id mono">connector-pack</span><span class="sec-hint">Entity id: ScopedId.of(orgId, packName).</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Entity id: ScopedId.of(orgId, packName).</p>
+    <div class="code"><div class="code-bar mono">ConnectorPackEntity.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"connector-pack"</span>)
+<span class="kw">public</span> <span class="kw">class</span> ConnectorPackEntity <span class="kw">extends</span> EventSourcedEntity&lt;ConnectorPack, ConnectorPackEvent&gt; {
+
+  <span class="kw">public</span> <span class="kw">record</span> Import(String orgId, String packName, PackDefinition definition, String importedBy) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Activate(String hash, ConnectorPack.Mode mode, String activatedBy) { ... }
+  <span class="kw">public</span> ConnectorPack emptyState() { ... }
+  <span class="kw">public</span> Effect&lt;String&gt; importVersion(Import command) { ... }
+  <span class="kw">public</span> Effect&lt;Done&gt; activate(Activate command) { ... }
+  <span class="kw">public</span> Effect&lt;Done&gt; deactivate(String by) { ... }
+  <span class="kw">public</span> ReadOnlyEffect&lt;ConnectorPack&gt; get() { ... }
+  <span class="kw">public</span> ConnectorPack applyEvent(ConnectorPackEvent event) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#F5C518"></span><span class="sec-title">ControlClaimsEntity</span><span class="sec-type">Event Sourced Entity</span><span class="sec-id mono">control-claims</span><span class="sec-hint">The acceptance of a control and the assertion about its evidence, with their history.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">The acceptance of a control and the assertion about its evidence, with their history. Id: ScopedId.of(orgId, "claims", controlId). Every change is an event, so the journal is the record of who said what and when; nothing is edited or removed.</p>
+    <div class="code"><div class="code-bar mono">ControlClaimsEntity.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"control-claims"</span>)
+<span class="kw">public</span> <span class="kw">class</span> ControlClaimsEntity <span class="kw">extends</span> EventSourcedEntity&lt;ControlClaims, ControlClaimsEntity.Event&gt; {
+
+  <span class="kw">public</span> <span class="kw">record</span> Accept(String by, String authority, String rationale, String catalogDigest, long at) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Assert(
+      String evidenceKind, List&lt;ControlClaims.Expectation&gt; expects, String by, String authority, String rationale,
+      long at) { ... }
+  <span class="kw">public</span> ControlClaims emptyState() { ... }
+  <span class="kw">public</span> ReadOnlyEffect&lt;ControlClaims&gt; get() { ... }
+  <span class="kw">public</span> Effect&lt;ControlClaims&gt; accept(Accept command) { ... }
+  <span class="kw">public</span> Effect&lt;ControlClaims&gt; withdrawAcceptance(Accept command) { ... }
+  <span class="kw">public</span> Effect&lt;ControlClaims&gt; assertEvidence(Assert command) { ... }
+  <span class="kw">public</span> ControlClaims applyEvent(Event event) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#F5C518"></span><span class="sec-title">DeliveryEntity</span><span class="sec-type">Event Sourced Entity</span><span class="sec-id mono">delivery</span><span class="sec-hint">The record of one notification and how it went.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">The record of one notification and how it went. Id: ScopedId.of(orgId, "nt", safe(subject)), so a message that is processed twice is recorded once. Nothing in it is a record's contents.</p>
+    <div class="code"><div class="code-bar mono">DeliveryEntity.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"delivery"</span>)
+<span class="kw">public</span> <span class="kw">class</span> DeliveryEntity <span class="kw">extends</span> EventSourcedEntity&lt;DeliveryEntity.State, DeliveryEntity.Event&gt; {
+
+  <span class="kw">public</span> <span class="kw">record</span> Delivery(String deliveryId, String orgId, String route, String type, String subject, String status,
+      String detail, long at) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> State(Delivery delivery) { ... }
+  <span class="kw">public</span> State emptyState() { ... }
+  <span class="kw">public</span> Effect&lt;State&gt; <span class="kw">record</span>(Delivery delivery) { ... }
+  <span class="kw">public</span> ReadOnlyEffect&lt;State&gt; get() { ... }
+  <span class="kw">public</span> State applyEvent(Event event) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#F5C518"></span><span class="sec-title">DocumentEntity</span><span class="sec-type">Event Sourced Entity</span><span class="sec-id mono">trust-document</span><span class="sec-hint">The versions of one trust document of a project.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">The versions of one trust document of a project. Id: ScopedId.of(orgId, "doc", ScopedId.safe(name)). A version is added and never changed, so the journal is the record of what was registered and when.</p>
+    <div class="code"><div class="code-bar mono">DocumentEntity.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"trust-document"</span>)
+<span class="kw">public</span> <span class="kw">class</span> DocumentEntity <span class="kw">extends</span> EventSourcedEntity&lt;TrustDocument.Document, DocumentEntity.Event&gt; {
+
+  <span class="kw">public</span> <span class="kw">record</span> Add(String name, String kind, String ref, String asOf, String content, String by, long at) { ... }
+  <span class="kw">public</span> TrustDocument.Document emptyState() { ... }
+  <span class="kw">public</span> ReadOnlyEffect&lt;TrustDocument.Document&gt; get() { ... }
+  <span class="kw">public</span> Effect&lt;TrustDocument.Document&gt; add(Add command) { ... }
+  <span class="kw">public</span> TrustDocument.Document applyEvent(Event event) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#F5C518"></span><span class="sec-title">DomainConfigEntity</span><span class="sec-type">Event Sourced Entity</span><span class="sec-id mono">domain-config</span><span class="sec-hint">The data domains of one project and the join rules between them.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">The data domains of one project and the join rules between them. The entity id is the project.</p>
+    <div class="code"><div class="code-bar mono">DomainConfigEntity.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"domain-config"</span>)
+<span class="kw">public</span> <span class="kw">class</span> DomainConfigEntity <span class="kw">extends</span> EventSourcedEntity&lt;DomainConfig, DomainConfigEvent&gt; {
+
+  <span class="kw">public</span> <span class="kw">record</span> RemoveDomain(String name, String by, long at) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> ApproveJoin(String a, String b, String by, String rationale, long at) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> RevokeJoin(String a, String b, String by, long at) { ... }
+  <span class="kw">public</span> DomainConfig emptyState() { ... }
+  <span class="kw">public</span> ReadOnlyEffect&lt;DomainConfig&gt; get() { ... }
+  <span class="kw">public</span> Effect&lt;DomainConfig&gt; set(DataDomain domain) { ... }
+  <span class="kw">public</span> Effect&lt;DomainConfig&gt; remove(RemoveDomain command) { ... }
+  <span class="kw">public</span> Effect&lt;DomainConfig&gt; approveJoin(ApproveJoin command) { ... }
+<span class="cm">  // 2 more</span>
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#F5C518"></span><span class="sec-title">EvidenceEntity</span><span class="sec-type">Event Sourced Entity</span><span class="sec-id mono">evidence</span><span class="sec-hint">An append-only record that a control ran.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">An append-only record that a control ran. Its id is ScopedId.of(orgId, "ev", controlId, part) with a part that is the same for the same fact, so recording a fact again changes nothing. There is no command that alters or removes a record.</p>
+    <div class="code"><div class="code-bar mono">EvidenceEntity.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"evidence"</span>)
+<span class="kw">public</span> <span class="kw">class</span> EvidenceEntity <span class="kw">extends</span> EventSourcedEntity&lt;EvidenceEntity.State, EvidenceEntity.Event&gt; {
+
+  <span class="kw">public</span> <span class="kw">record</span> State(Evidence evidence) { ... }
+  <span class="kw">public</span> State emptyState() { ... }
+  <span class="kw">public</span> Effect&lt;State&gt; <span class="kw">record</span>(Evidence evidence) { ... }
+  <span class="kw">public</span> ReadOnlyEffect&lt;State&gt; get() { ... }
+  <span class="kw">public</span> State applyEvent(Event event) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#F5C518"></span><span class="sec-title">HumanEventEntity</span><span class="sec-type">Event Sourced Entity</span><span class="sec-id mono">human-event</span><span class="sec-hint">One human event.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">One human event. Id: ScopedId.of(orgId, "he", ...). Every rule is in HumanEvent; this class persists what the rules accept and answers what they refuse, so a refusal is a reply the caller can tell apart, not an error.</p>
+    <div class="code"><div class="code-bar mono">HumanEventEntity.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"human-event"</span>)
+<span class="kw">public</span> <span class="kw">class</span> HumanEventEntity <span class="kw">extends</span> EventSourcedEntity&lt;HumanEvent, HumanEventEvent&gt; {
+
+  <span class="kw">public</span> <span class="kw">record</span> Answer(HumanEvent event, Refusal refusal) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Act(Reviewer reviewer, long now) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Decide(
+      Reviewer reviewer, String action, String rationale, List&lt;String&gt; checks, long presentedAt, long now) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Escalate(Reviewer reviewer, String reason, long now) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> SendBack(Reviewer reviewer, String requested, long now) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Withdraw(Reviewer reviewer, String reason, long now) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Expire(long now) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Applied(String note, long now) { ... }
+<span class="cm">  // 18 more</span>
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#F5C518"></span><span class="sec-title">IdentityEntity</span><span class="sec-type">Event Sourced Entity</span><span class="sec-id mono">identity-cluster</span><span class="sec-hint">Entity id: ScopedId.of(orgId, rule, normalizedKey).</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Entity id: ScopedId.of(orgId, rule, normalizedKey).</p>
+    <div class="code"><div class="code-bar mono">IdentityEntity.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"identity-cluster"</span>)
+<span class="kw">public</span> <span class="kw">class</span> IdentityEntity <span class="kw">extends</span> EventSourcedEntity&lt;IdentityCluster, IdentityEvent&gt; {
+
+  <span class="kw">public</span> <span class="kw">record</span> AddMember(
+      String orgId,
+      String rule,
+      String key,
+      double confidence,
+      String source,
+      String entityType,
+      String sourceRecordId) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Review(String reviewer) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Unlink(String source, String entityType, String sourceRecordId, String by, String reason) { ... }
+  <span class="kw">public</span> IdentityCluster emptyState() { ... }
+  <span class="kw">public</span> Effect&lt;IdentityCluster&gt; addMember(AddMember command) { ... }
+  <span class="kw">public</span> Effect&lt;IdentityCluster&gt; confirm(Review command) { ... }
+  <span class="kw">public</span> Effect&lt;IdentityCluster&gt; reject(Review command) { ... }
+  <span class="kw">public</span> Effect&lt;IdentityCluster&gt; unlink(Unlink command) { ... }
+<span class="cm">  // 2 more</span>
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#F5C518"></span><span class="sec-title">IntegrityChainEntity</span><span class="sec-type">Event Sourced Entity</span><span class="sec-id mono">integrity-chain</span><span class="sec-hint">Puts evidence records in a single order and chains their digests.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Puts evidence records in a single order and chains their digests. The entity id is the project.</p>
+    <div class="code"><div class="code-bar mono">IntegrityChainEntity.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"integrity-chain"</span>)
+<span class="kw">public</span> <span class="kw">class</span> IntegrityChainEntity <span class="kw">extends</span> EventSourcedEntity&lt;IntegrityChainEntity.Chain, IntegrityChainEntity.Event&gt; {
+
+  <span class="kw">public</span> <span class="kw">record</span> Chain(long count, String head, List&lt;Integrity.Link&gt; recent) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Append(String recordId, String recordDigest, long at) { ... }
+  <span class="kw">public</span> Chain emptyState() { ... }
+  <span class="kw">public</span> ReadOnlyEffect&lt;Chain&gt; get() { ... }
+  <span class="kw">public</span> Effect&lt;Integrity.Link&gt; append(Append command) { ... }
+  <span class="kw">public</span> Chain applyEvent(Event event) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#F5C518"></span><span class="sec-title">MonitorEntity</span><span class="sec-type">Event Sourced Entity</span><span class="sec-id mono">monitor</span><span class="sec-hint">Entity id: ScopedId.of(orgId, monitorId).</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Entity id: ScopedId.of(orgId, monitorId).</p>
+    <div class="code"><div class="code-bar mono">MonitorEntity.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"monitor"</span>)
+<span class="kw">public</span> <span class="kw">class</span> MonitorEntity <span class="kw">extends</span> EventSourcedEntity&lt;Monitor, MonitorEvent&gt; {
+
+  <span class="kw">public</span> <span class="kw">record</span> Create(String orgId, String monitorId, MonitorDefinition definition, String by) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Update(MonitorDefinition definition, String by) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> SetEnabled(boolean enabled, String by) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> RecordRun(long at, List&lt;String&gt; matchingKeys, boolean complete, String note) { ... }
+  <span class="kw">public</span> Monitor emptyState() { ... }
+  <span class="kw">public</span> Effect&lt;Done&gt; create(Create command) { ... }
+  <span class="kw">public</span> Effect&lt;Done&gt; update(Update command) { ... }
+  <span class="kw">public</span> Effect&lt;Done&gt; setEnabled(SetEnabled command) { ... }
+<span class="cm">  // 3 more</span>
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#28C840"></span><span class="sec-title">ChangeFeedEntity</span><span class="sec-type">Key Value Entity</span><span class="sec-id mono">change-feed</span><span class="sec-hint">Pushes a notice to everyone watching a project whenever its data changes.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Pushes a notice to everyone watching a project whenever its data changes. There is one per project, and it keeps nothing: a notice goes to the subscribers connected at that moment and is not replayed. A watcher that reconnects reads the data again, so a missed notice costs one more read and never a wrong answer.</p>
+    <div class="code"><div class="code-bar mono">ChangeFeedEntity.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"change-feed"</span>)
+<span class="kw">public</span> <span class="kw">class</span> ChangeFeedEntity <span class="kw">extends</span> KeyValueEntity&lt;Done&gt; {
+
+  <span class="kw">public</span> <span class="kw">record</span> ChangeNotice(String pack, String entityType, String entityId, String op, long at) { ... }
+  <span class="kw">public</span> Effect&lt;Done&gt; publish(ChangeNotice notice) { ... }
+  <span class="kw">public</span> NotificationStream&lt;ChangeNotice&gt; updates() { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#28C840"></span><span class="sec-title">HaltEntity</span><span class="sec-type">Key Value Entity</span><span class="sec-id mono">assistant-halt</span><span class="sec-hint">Whether an assistant is halted.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Whether an assistant is halted. While it is, nothing it asks for is done and its playbooks stop. Only the outcome of a halt or restart decision sets this (see HumanEventApplier); the decision itself, with who made it and why, is the human event and its evidence. Id: ScopedId.of(orgId, "halt", assistantId).</p>
+    <div class="code"><div class="code-bar mono">HaltEntity.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"assistant-halt"</span>)
+<span class="kw">public</span> <span class="kw">class</span> HaltEntity <span class="kw">extends</span> KeyValueEntity&lt;HaltEntity.State&gt; {
+
+  <span class="kw">public</span> <span class="kw">record</span> State(boolean halted, long since, String by, String reason, String eventId) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Set(boolean halted, String by, String reason, String eventId, long now) { ... }
+  <span class="kw">public</span> <span class="kw">static</span> String id(String orgId, String assistantId) { ... }
+  <span class="kw">public</span> <span class="kw">static</span> boolean isHalted(ComponentClient client, String orgId, String assistantId) { ... }
+  <span class="kw">public</span> State emptyState() { ... }
+  <span class="kw">public</span> Effect&lt;State&gt; set(Set command) { ... }
+  <span class="kw">public</span> ReadOnlyEffect&lt;State&gt; get() { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#28C840"></span><span class="sec-title">NotificationRouteEntity</span><span class="sec-type">Key Value Entity</span><span class="sec-id mono">notification-route</span><span class="sec-hint">Where the messages for one route go.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Where the messages for one route go. A route is a name a case is sent to ("Claims Team B") or role:approver for the people an approval waits on. Id: ScopedId.of(orgId, "route", safe(name)).</p>
+    <div class="code"><div class="code-bar mono">NotificationRouteEntity.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"notification-route"</span>)
+<span class="kw">public</span> <span class="kw">class</span> NotificationRouteEntity <span class="kw">extends</span> KeyValueEntity&lt;NotificationRouteEntity.State&gt; {
+
+  <span class="kw">public</span> <span class="kw">record</span> State(boolean exists, boolean enabled, String url, String format, String credentialRef, String by, long at) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Set(String url, String format, String credentialRef, String by, long now) { ... }
+  <span class="kw">public</span> <span class="kw">static</span> String id(String orgId, String routeName) { ... }
+  <span class="kw">public</span> State emptyState() { ... }
+  <span class="kw">public</span> Effect&lt;State&gt; set(Set command) { ... }
+  <span class="kw">public</span> Effect&lt;State&gt; disable(Set command) { ... }
+  <span class="kw">public</span> ReadOnlyEffect&lt;State&gt; get() { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#28C840"></span><span class="sec-title">RefreshStatusEntity</span><span class="sec-type">Key Value Entity</span><span class="sec-id mono">refresh-status</span><span class="sec-hint">The latest refresh result for one entity type from one pack.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">The latest refresh result for one entity type from one pack. Only the latest matters, and the action ledger and identity events already carry the audit history, so this is a plain value. Entity id: ScopedId.of(orgId, packName, entityType).</p>
+    <div class="code"><div class="code-bar mono">RefreshStatusEntity.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"refresh-status"</span>)
+<span class="kw">public</span> <span class="kw">class</span> RefreshStatusEntity <span class="kw">extends</span> KeyValueEntity&lt;RefreshStatus&gt; {
+
+  <span class="kw">public</span> RefreshStatus emptyState() { ... }
+  <span class="kw">public</span> Effect&lt;Done&gt; <span class="kw">record</span>(RefreshStatus status) { ... }
+  <span class="kw">public</span> ReadOnlyEffect&lt;RefreshStatus&gt; get() { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#28C840"></span><span class="sec-title">WaiverEntity</span><span class="sec-type">Key Value Entity</span><span class="sec-id mono">control-waiver</span><span class="sec-hint">Whether an organization has waived a control, and why.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Whether an organization has waived a control, and why. Only the current waiver is held; granting and lifting are also recorded as evidence, which is the history. Id: ScopedId.of(orgId, "waiver", controlId).</p>
+    <div class="code"><div class="code-bar mono">WaiverEntity.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"control-waiver"</span>)
+<span class="kw">public</span> <span class="kw">class</span> WaiverEntity <span class="kw">extends</span> KeyValueEntity&lt;WaiverEntity.State&gt; {
+
+  <span class="kw">public</span> <span class="kw">record</span> State(boolean exists, String reason, String by, String authority, long grantedAt, long waivedUntil,
+      boolean lifted) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Grant(String reason, String by, String authority, long waivedUntil, long now) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Lift(String by, String authority, long now) { ... }
+  <span class="kw">public</span> State emptyState() { ... }
+  <span class="kw">public</span> Effect&lt;State&gt; grant(Grant command) { ... }
+  <span class="kw">public</span> Effect&lt;State&gt; lift(Lift command) { ... }
+  <span class="kw">public</span> ReadOnlyEffect&lt;State&gt; get() { ... }
+  <span class="kw">public</span> <span class="kw">static</span> Compliance.Waiver asWaiver(State state) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#A855F7"></span><span class="sec-title">ActionLedgerView</span><span class="sec-type">View</span><span class="sec-id mono">action-ledger-view</span><span class="sec-hint">Audit and work-queue reads over the action ledger: one row per action.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Audit and work-queue reads over the action ledger: one row per action.</p>
+    <div class="code"><div class="code-bar mono">ActionLedgerView.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"action-ledger-view"</span>)
+<span class="kw">public</span> <span class="kw">class</span> ActionLedgerView <span class="kw">extends</span> View {
+
+  <span class="kw">public</span> <span class="kw">record</span> ActionRow(
+      String orgId,
+      String assistantId,
+      String actionKey,
+      String actionType,
+      String status,
+      String reason,
+      String decidedBy) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> ActionRows(List&lt;ActionRow&gt; items) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> ByAssistant(String orgId, String assistantId) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> ByStatus(String orgId, String status) { ... }
+  <span class="kw">public</span> QueryEffect&lt;ActionRows&gt; byAssistant(ByAssistant query) { ... }
+  <span class="kw">public</span> QueryEffect&lt;ActionRows&gt; byStatus(ByStatus query) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#A855F7"></span><span class="sec-title">AssistantListView</span><span class="sec-type">View</span><span class="sec-id mono">assistant-list-view</span><span class="sec-hint">The assistants of an organization with their stage and release counts, for lists.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">The assistants of an organization with their stage and release counts, for lists.</p>
+    <div class="code"><div class="code-bar mono">AssistantListView.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"assistant-list-view"</span>)
+<span class="kw">public</span> <span class="kw">class</span> AssistantListView <span class="kw">extends</span> View {
+
+  <span class="kw">public</span> <span class="kw">record</span> AssistantRow(
+      String orgId, String assistantId, String purpose, String owner, String stage, int releaseCount, int approvedCount) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> AssistantRows(List&lt;AssistantRow&gt; items) { ... }
+  <span class="kw">public</span> QueryEffect&lt;AssistantRows&gt; forOrganization(String orgId) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#A855F7"></span><span class="sec-title">CaseView</span><span class="sec-type">View</span><span class="sec-id mono">case-view</span><span class="sec-hint">One row per case, for work queues and lists.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">One row per case, for work queues and lists.</p>
+    <div class="code"><div class="code-bar mono">CaseView.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"case-view"</span>)
+<span class="kw">public</span> <span class="kw">class</span> CaseView <span class="kw">extends</span> View {
+
+  <span class="kw">public</span> <span class="kw">record</span> CaseRow(
+      String orgId, String caseId, String monitorId, String key, String status, String routeTo, long openedAt) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> CaseRows(List&lt;CaseRow&gt; items) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> ByStatus(String orgId, String status) { ... }
+  <span class="kw">public</span> QueryEffect&lt;CaseRows&gt; byStatus(ByStatus query) { ... }
+  <span class="kw">public</span> QueryEffect&lt;CaseRows&gt; forOrganization(String orgId) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#A855F7"></span><span class="sec-title">ConnectorPackView</span><span class="sec-type">View</span><span class="sec-id mono">connector-pack-view</span><span class="sec-hint">The connector packs of an organization and their mode.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">The connector packs of an organization and their mode. It only lists names: callers read the pack entity itself for the definition, because a view lags its entity.</p>
+    <div class="code"><div class="code-bar mono">ConnectorPackView.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"connector-pack-view"</span>)
+<span class="kw">public</span> <span class="kw">class</span> ConnectorPackView <span class="kw">extends</span> View {
+
+  <span class="kw">public</span> <span class="kw">record</span> ConnectorRow(String orgId, String name, String mode) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> ConnectorRows(List&lt;ConnectorRow&gt; items) { ... }
+  <span class="kw">public</span> QueryEffect&lt;ConnectorRows&gt; forOrganization(String orgId) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#A855F7"></span><span class="sec-title">DeliveryView</span><span class="sec-type">View</span><span class="sec-id mono">delivery-view</span><span class="sec-hint">Notifications by organization, newest first.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Notifications by organization, newest first.</p>
+    <div class="code"><div class="code-bar mono">DeliveryView.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"delivery-view"</span>)
+<span class="kw">public</span> <span class="kw">class</span> DeliveryView <span class="kw">extends</span> View {
+
+  <span class="kw">public</span> <span class="kw">record</span> Row(String deliveryId, String orgId, String route, String type, String subject, String status,
+      String detail, long at) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Rows(List&lt;Row&gt; items) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> ForOrganization(String orgId, int max) { ... }
+  <span class="kw">public</span> QueryEffect&lt;Rows&gt; forOrganization(ForOrganization query) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#A855F7"></span><span class="sec-title">DocumentView</span><span class="sec-type">View</span><span class="sec-id mono">trust-document-view</span><span class="sec-hint">The trust documents of a project, each as its newest version, for listing.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">The trust documents of a project, each as its newest version, for listing.</p>
+    <div class="code"><div class="code-bar mono">DocumentView.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"trust-document-view"</span>)
+<span class="kw">public</span> <span class="kw">class</span> DocumentView <span class="kw">extends</span> View {
+
+  <span class="kw">public</span> <span class="kw">record</span> Row(String orgId, String name, String kind, String ref, String asOf, String digest, String by, long at, int versions) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Rows(List&lt;Row&gt; items) { ... }
+  <span class="kw">public</span> QueryEffect&lt;Rows&gt; forOrganization(String orgId) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#A855F7"></span><span class="sec-title">EvidenceView</span><span class="sec-type">View</span><span class="sec-id mono">evidence-view</span><span class="sec-hint">Evidence by organization and control, newest first, for compliance and export.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Evidence by organization and control, newest first, for compliance and export.</p>
+    <div class="code"><div class="code-bar mono">EvidenceView.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"evidence-view"</span>)
+<span class="kw">public</span> <span class="kw">class</span> EvidenceView <span class="kw">extends</span> View {
+
+  <span class="kw">public</span> <span class="kw">record</span> Row(
+      String evidenceId, String orgId, String controlId, String eventType, String boundary, String mode,
+      String decision, String consequence, String reasonCode, String subject, String actor, String authority,
+      String bundleDigest, String ref, boolean flagged, long at, String verdict) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Rows(List&lt;Row&gt; items) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> ByControl(String orgId, String controlId, long since, int max) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> ByOrganization(String orgId, long since, int max) { ... }
+  <span class="kw">public</span> QueryEffect&lt;Rows&gt; byControl(ByControl query) { ... }
+  <span class="kw">public</span> QueryEffect&lt;Rows&gt; byOrganization(ByOrganization query) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#A855F7"></span><span class="sec-title">HumanEventView</span><span class="sec-type">View</span><span class="sec-id mono">human-event-view</span><span class="sec-hint">The queue of human events: one row per event, enough to list, filter and order them.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">The queue of human events: one row per event, enough to list, filter and order them.</p>
+    <div class="code"><div class="code-bar mono">HumanEventView.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"human-event-view"</span>)
+<span class="kw">public</span> <span class="kw">class</span> HumanEventView <span class="kw">extends</span> View {
+
+  <span class="kw">public</span> <span class="kw">record</span> Row(
+      String id,
+      String orgId,
+      String controlId,
+      String state,
+      boolean pending,
+      String mode,
+      String subjectKind,
+      String summary,
+      String assistantId,
+      String proposedBy,
+      String holder,
+      int level,
+      long raisedAt,
+      long dueAt,
+      String outcomeAction,
+      long closedAt) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Rows(List&lt;Row&gt; items) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> ByOrganization(String orgId, int max) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> ByPending(String orgId, boolean pending, int max) { ... }
+  <span class="kw">public</span> QueryEffect&lt;Rows&gt; byOrganization(ByOrganization query) { ... }
+  <span class="kw">public</span> QueryEffect&lt;Rows&gt; byPending(ByPending query) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#A855F7"></span><span class="sec-title">IdentityReviewView</span><span class="sec-type">View</span><span class="sec-id mono">identity-review-view</span><span class="sec-hint">One row per identity cluster, so the review queue is a query on status.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">One row per identity cluster, so the review queue is a query on status.</p>
+    <div class="code"><div class="code-bar mono">IdentityReviewView.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"identity-review-view"</span>)
+<span class="kw">public</span> <span class="kw">class</span> IdentityReviewView <span class="kw">extends</span> View {
+
+  <span class="kw">public</span> <span class="kw">record</span> ClusterRow(
+      String orgId,
+      String rule,
+      String key,
+      double confidence,
+      int memberCount,
+      String review,
+      String status) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> ClusterRows(List&lt;ClusterRow&gt; items) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> ByStatus(String orgId, String status) { ... }
+  <span class="kw">public</span> QueryEffect&lt;ClusterRows&gt; byStatus(ByStatus query) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#A855F7"></span><span class="sec-title">MonitorListView</span><span class="sec-type">View</span><span class="sec-id mono">monitor-list-view</span><span class="sec-hint">The monitors of an organization with their last run, for lists.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">The monitors of an organization with their last run, for lists.</p>
+    <div class="code"><div class="code-bar mono">MonitorListView.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"monitor-list-view"</span>)
+<span class="kw">public</span> <span class="kw">class</span> MonitorListView <span class="kw">extends</span> View {
+
+  <span class="kw">public</span> <span class="kw">record</span> MonitorRow(
+      String orgId,
+      String monitorId,
+      String name,
+      boolean enabled,
+      int intervalMinutes,
+      String assistantId,
+      int runCount,
+      long lastRunAt,
+      String lastRunNote,
+      boolean onChange,
+      List&lt;String&gt; entityTypes) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> MonitorRows(List&lt;MonitorRow&gt; items) { ... }
+  <span class="kw">public</span> QueryEffect&lt;MonitorRows&gt; forOrganization(String orgId) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#7EC8E3"></span><span class="sec-title">ActionWorkflow</span><span class="sec-type">Workflow</span><span class="sec-id mono">action-run</span><span class="sec-hint">Takes one requested action from the assistant's request to its outcome: decide by...</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Takes one requested action from the assistant's request to its outcome: decide by policy, wait for a person when required, call the outside system once, record the result.</p>
+    <div class="code"><div class="code-bar mono">ActionWorkflow.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"action-run"</span>)
+<span class="kw">public</span> <span class="kw">class</span> ActionWorkflow <span class="kw">extends</span> Workflow&lt;ActionWorkflow.Run&gt; {
+
+  <span class="kw">public</span> <span class="kw">record</span> Start(
+      String orgId, String assistantId, String actionKey, String actionType, String payload, String caseId,
+      String requestedBy) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Rejection(String by, String reason) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Run(
+      String orgId,
+      String assistantId,
+      String actionKey,
+      String actionType,
+      String payload,
+      String caseId,
+      String phase,
+      String decidedBy,
+      String rejectReason,
+      String requestedBy) { ... }
+  <span class="kw">public</span> WorkflowSettings settings() { ... }
+  <span class="kw">public</span> Effect&lt;String&gt; start(Start command) { ... }
+  <span class="kw">public</span> Effect&lt;String&gt; approve(String approver) { ... }
+  <span class="kw">public</span> Effect&lt;String&gt; reject(Rejection rejection) { ... }
+  <span class="kw">public</span> ReadOnlyEffect&lt;Run&gt; get() { ... }
+<span class="cm">  // 1 more</span>
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#7EC8E3"></span><span class="sec-title">MonitorRunWorkflow</span><span class="sec-type">Workflow</span><span class="sec-id mono">monitor-run</span><span class="sec-hint">One run of a monitor: ask its question, record which rows newly match or have stopped...</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">One run of a monitor: ask its question, record which rows newly match or have stopped matching, open a case for each new row and close the case of each row that stopped.</p>
+    <div class="code"><div class="code-bar mono">MonitorRunWorkflow.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"monitor-run"</span>)
+<span class="kw">public</span> <span class="kw">class</span> MonitorRunWorkflow <span class="kw">extends</span> Workflow&lt;MonitorRunWorkflow.Run&gt; {
+
+  <span class="kw">public</span> <span class="kw">record</span> Start(String orgId, String monitorId, long at) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Run(
+      String orgId,
+      String monitorId,
+      long at,
+      String phase,
+      String routeTo,
+      String assistantId,
+      List&lt;String&gt; keys,
+      Map&lt;String, Map&lt;String, Object&gt;&gt; evidence,
+      boolean complete,
+      String note,
+      List&lt;String&gt; sourceNotes,
+      Monitor.RunPlan plan) { ... }
+  <span class="kw">public</span> WorkflowSettings settings() { ... }
+  <span class="kw">public</span> Effect&lt;String&gt; start(Start command) { ... }
+  <span class="kw">public</span> ReadOnlyEffect&lt;Run&gt; get() { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#7EC8E3"></span><span class="sec-title">PlaybookWorkflow</span><span class="sec-type">Workflow</span><span class="sec-id mono">playbook-run</span><span class="sec-hint">Runs an assistant's playbook for one case: label the case with a model, branch on the...</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Runs an assistant's playbook for one case: label the case with a model, branch on the label, request actions, and write each of those to the case timeline.</p>
+    <div class="code"><div class="code-bar mono">PlaybookWorkflow.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"playbook-run"</span>)
+<span class="kw">public</span> <span class="kw">class</span> PlaybookWorkflow <span class="kw">extends</span> Workflow&lt;PlaybookWorkflow.Run&gt; {
+
+  <span class="kw">public</span> <span class="kw">record</span> Start(String orgId, String caseId) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Run(
+      String orgId,
+      String caseId,
+      String assistantId,
+      String releaseId,
+      String definition,
+      String current,
+      Map&lt;String, String&gt; labels,
+      Map&lt;String, Object&gt; evidence,
+      String phase) { ... }
+  <span class="kw">public</span> WorkflowSettings settings() { ... }
+  <span class="kw">public</span> Effect&lt;String&gt; start(Start command) { ... }
+  <span class="kw">public</span> ReadOnlyEffect&lt;Run&gt; get() { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#FF6B6B"></span><span class="sec-title">ClassifierAgent</span><span class="sec-type">Agent</span><span class="sec-id mono">classifier-agent</span><span class="sec-hint">Labels a piece of text with one of a fixed set of labels (REQUIREMENTS AI-01).</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Labels a piece of text with one of a fixed set of labels (REQUIREMENTS AI-01). The caller checks that the answer really is one of the allowed labels and treats anything else as a failed step, because a label outside the set must never be acted on.</p>
+    <div class="code"><div class="code-bar mono">ClassifierAgent.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"classifier-agent"</span>)
+<span class="kw">public</span> <span class="kw">class</span> ClassifierAgent <span class="kw">extends</span> Agent {
+
+  <span class="kw">public</span> <span class="kw">record</span> Request(String instruction, String text, List&lt;String&gt; labels) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Judgment(
+      <span <span class="kw">class</span>="an">@Description</span>(<span <span class="kw">class</span>="st">"Exactly one of the allowed labels, spelled the same way"</span>) String label, { ... }
+  <span class="kw">public</span> Effect&lt;Judgment&gt; classify(Request request) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#FF6B6B"></span><span class="sec-title">ComplianceIntentAgent</span><span class="sec-type">Agent</span><span class="sec-id mono">compliance-intent-agent</span><span class="sec-hint">Decides which of a fixed list of questions an auditor asked, and which control and...</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Decides which of a fixed list of questions an auditor asked, and which control and period it is about. It does not answer, and it is shown no records: only the questions that can be answered and the controls there are.</p>
+    <div class="code"><div class="code-bar mono">ComplianceIntentAgent.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"compliance-intent-agent"</span>)
+<span class="kw">public</span> <span class="kw">class</span> ComplianceIntentAgent <span class="kw">extends</span> Agent {
+
+  <span class="kw">public</span> <span class="kw">record</span> Request(String question, String intents, String controls) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Choice(
+      <span <span class="kw">class</span>="an">@Description</span>(<span <span class="kw">class</span>="st">"One of the listed question names exactly, or empty when none of them fits"</span>) String intent, { ... }
+  <span class="kw">public</span> Effect&lt;Choice&gt; classify(Request request) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#FF6B6B"></span><span class="sec-title">ComplianceSummaryAgent</span><span class="sec-type">Agent</span><span class="sec-id mono">compliance-summary-agent</span><span class="sec-hint">Words facts that were already computed.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Words facts that were already computed. It is a separate agent from the one that chose the question, and it sees the facts and nothing else, so what it can say is limited to them. The caller checks what it wrote.</p>
+    <div class="code"><div class="code-bar mono">ComplianceSummaryAgent.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"compliance-summary-agent"</span>)
+<span class="kw">public</span> <span class="kw">class</span> ComplianceSummaryAgent <span class="kw">extends</span> Agent {
+
+  <span class="kw">public</span> <span class="kw">record</span> Request(String question, String facts, String limits) { ... }
+  <span class="kw">public</span> Effect&lt;String&gt; summarize(Request request) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#FF6B6B"></span><span class="sec-title">QuestionAgent</span><span class="sec-type">Agent</span><span class="sec-id mono">question-agent</span><span class="sec-hint">Turns a person's request in words into the parts of a structured question.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Turns a person's request in words into the parts of a structured question. It is shown only the shape of the data (see QuestionDrafter); the caller checks everything it returns against that shape and a person reads the question before it runs.</p>
+    <div class="code"><div class="code-bar mono">QuestionAgent.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"question-agent"</span>)
+<span class="kw">public</span> <span class="kw">class</span> QuestionAgent <span class="kw">extends</span> Agent {
+
+  <span class="kw">public</span> <span class="kw">record</span> Request(String ask, String schema, String feedback) { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Condition(
+      <span <span class="kw">class</span>="an">@Description</span>(<span <span class="kw">class</span>="st">"A field name of the type, exactly as listed"</span>) String field, { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Link(
+      <span <span class="kw">class</span>="an">@Description</span>(<span <span class="kw">class</span>="st">"An entity type name, exactly as listed"</span>) String entityType, { ... }
+  <span class="kw">public</span> <span class="kw">record</span> Draft(
+      <span <span class="kw">class</span>="an">@Description</span>(<span <span class="kw">class</span>="st">"The base entity type, exactly as listed; empty when asking for clarification"</span>) String entityType, { ... }
+  <span class="kw">public</span> Effect&lt;Draft&gt; draft(Request request) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#8a8a8a"></span><span class="sec-title">CaseNotifier</span><span class="sec-type">Consumer</span><span class="sec-id mono">case-notifier</span><span class="sec-hint">Tells the team a new case is routed to.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Tells the team a new case is routed to. The message names the case and the monitor and nothing from the evidence; the team opens the console for that. What happened is written on the case timeline, including that nobody could be told.</p>
+    <div class="code"><div class="code-bar mono">CaseNotifier.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"case-notifier"</span>)
+<span <span class="kw">class</span>="an">@Consume.FromEventSourcedEntity</span>(CaseEntity.<span class="kw">class</span>)
+<span class="kw">public</span> <span class="kw">class</span> CaseNotifier <span class="kw">extends</span> Consumer {
+
+  <span class="kw">public</span> Effect onEvent(CaseEvent event) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#8a8a8a"></span><span class="sec-title">EntityChangeConsumer</span><span class="sec-type">Consumer</span><span class="sec-id mono">entity-change-consumer</span><span class="sec-hint">Takes in the records another Akka service in this project pushes on its entity_changes...</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Takes in the records another Akka service in this project pushes on its entity_changes stream. The stream starts from the publisher's snapshot, so a new deployment gets current data and then every change after it.</p>
+    <div class="code"><div class="code-bar mono">EntityChangeConsumer.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"entity-change-consumer"</span>)
+<span <span class="kw">class</span>="an">@Consume.FromServiceStream</span>(service = <span <span class="kw">class</span>="st">"claims-system"</span>, id = <span <span class="kw">class</span>="st">"entity_changes"</span>)
+<span class="kw">public</span> <span class="kw">class</span> EntityChangeConsumer <span class="kw">extends</span> Consumer {
+
+  <span class="kw">public</span> Effect onUpserted(EntityChange.Upserted change) { ... }
+  <span class="kw">public</span> Effect onDeleted(EntityChange.Deleted change) { ... }
+  <span class="kw">public</span> Effect onHeartbeat(EntityChange.Heartbeat change) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#8a8a8a"></span><span class="sec-title">HumanEventApplier</span><span class="sec-type">Consumer</span><span class="sec-id mono">human-event-applier</span><span class="sec-hint">Carries a decided human event into the thing that waited on it.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Carries a decided human event into the thing that waited on it. The decision is the only thing that can release an action, so there is no other path from a person's answer to the workflow, and a failed delivery is retried by the runtime until it lands. The workflow takes a repeated delivery without complaint.</p>
+    <div class="code"><div class="code-bar mono">HumanEventApplier.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"human-event-applier"</span>)
+<span <span class="kw">class</span>="an">@Consume.FromEventSourcedEntity</span>(HumanEventEntity.<span class="kw">class</span>)
+<span class="kw">public</span> <span class="kw">class</span> HumanEventApplier <span class="kw">extends</span> Consumer {
+
+  <span class="kw">public</span> Effect onEvent(HumanEventEvent event) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#8a8a8a"></span><span class="sec-title">HumanEventNotifier</span><span class="sec-type">Consumer</span><span class="sec-id mono">human-event-notifier</span><span class="sec-hint">Tells the people an event waits on that it needs them: when it is raised, and again when...</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Tells the people an event waits on that it needs them: when it is raised, and again when it is escalated to the next role. The route is role:, so a team sets up one destination per role.</p>
+    <div class="code"><div class="code-bar mono">HumanEventNotifier.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"human-event-notifier"</span>)
+<span <span class="kw">class</span>="an">@Consume.FromEventSourcedEntity</span>(HumanEventEntity.<span class="kw">class</span>)
+<span class="kw">public</span> <span class="kw">class</span> HumanEventNotifier <span class="kw">extends</span> Consumer {
+
+  <span class="kw">public</span> Effect onEvent(HumanEventEvent event) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#8a8a8a"></span><span class="sec-title">HumanEvidenceConsumer</span><span class="sec-type">Consumer</span><span class="sec-id mono">human-evidence-consumer</span><span class="sec-hint">Derives evidence from what happened to human events.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Derives evidence from what happened to human events. Evidence comes from the event journal, so a decision cannot be made without it being recorded, and replaying the journal records the same facts under the same ids.</p>
+    <div class="code"><div class="code-bar mono">HumanEvidenceConsumer.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"human-evidence-consumer"</span>)
+<span <span class="kw">class</span>="an">@Consume.FromEventSourcedEntity</span>(HumanEventEntity.<span class="kw">class</span>)
+<span class="kw">public</span> <span class="kw">class</span> HumanEvidenceConsumer <span class="kw">extends</span> Consumer {
+
+  <span class="kw">public</span> Effect onEvent(HumanEventEvent event) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#8a8a8a"></span><span class="sec-title">IdentityGraphConsumer</span><span class="sec-type">Consumer</span><span class="sec-id mono">identity-graph-consumer</span><span class="sec-hint">Keeps the entity graph in step with identity decisions: a new member is linked to its...</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Keeps the entity graph in step with identity decisions: a new member is linked to its cluster, a removed member is unlinked, and every change re-states the cluster's status, so a confirmation joins entities in questions and a rejection or unlinking removes the join. Every operation can be repeated safely, because a failed event is retried.</p>
+    <div class="code"><div class="code-bar mono">IdentityGraphConsumer.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"identity-graph-consumer"</span>)
+<span <span class="kw">class</span>="an">@Consume.FromEventSourcedEntity</span>(IdentityEntity.<span class="kw">class</span>)
+<span class="kw">public</span> <span class="kw">class</span> IdentityGraphConsumer <span class="kw">extends</span> Consumer {
+
+  <span class="kw">public</span> Effect onEvent(IdentityEvent event) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#8a8a8a"></span><span class="sec-title">IdentityReviewRaiser</span><span class="sec-type">Consumer</span><span class="sec-id mono">identity-review-raiser</span><span class="sec-hint">Keeps the queue of identity reviews in step with the clusters: a cluster that needs a...</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Keeps the queue of identity reviews in step with the clusters: a cluster that needs a person gets a human event, and the event of a question that a changed cluster has made obsolete is closed. Raising is idempotent, so a retried event raises nothing twice.</p>
+    <div class="code"><div class="code-bar mono">IdentityReviewRaiser.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"identity-review-raiser"</span>)
+<span <span class="kw">class</span>="an">@Consume.FromEventSourcedEntity</span>(IdentityEntity.<span class="kw">class</span>)
+<span class="kw">public</span> <span class="kw">class</span> IdentityReviewRaiser <span class="kw">extends</span> Consumer {
+
+  <span class="kw">public</span> Effect onEvent(IdentityEvent event) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#8a8a8a"></span><span class="sec-title">IntegrityConsumer</span><span class="sec-type">Consumer</span><span class="sec-id mono">integrity-consumer</span><span class="sec-hint">Chains each evidence record as it is recorded.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Chains each evidence record as it is recorded. A record that arrives twice is chained once, and a failure part way is retried until the record is in the chain and its link is written, so no record is left out.</p>
+    <div class="code"><div class="code-bar mono">IntegrityConsumer.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"integrity-consumer"</span>)
+<span <span class="kw">class</span>="an">@Consume.FromEventSourcedEntity</span>(EvidenceEntity.<span class="kw">class</span>)
+<span class="kw">public</span> <span class="kw">class</span> IntegrityConsumer <span class="kw">extends</span> Consumer {
+
+  <span class="kw">public</span> Effect onRecorded(EvidenceEntity.Event.Recorded recorded) { ... }
+  <span class="kw">public</span> <span class="kw">static</span> String linkId(String orgId, long seq) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#8a8a8a"></span><span class="sec-title">HumanEventTimedAction</span><span class="sec-type">Timed Action</span><span class="sec-id mono">human-event-timed-action</span><span class="sec-hint">Times a human event out when its service level runs out.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Times a human event out when its service level runs out. Events that wait on a workflow are timed out by that workflow; this is for the ones nothing else is watching. The event decides whether it is really due and whether anyone is still to act, so a timer that fires late, twice or for an event already decided changes nothing.</p>
+    <div class="code"><div class="code-bar mono">HumanEventTimedAction.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"human-event-timed-action"</span>)
+<span class="kw">public</span> <span class="kw">class</span> HumanEventTimedAction <span class="kw">extends</span> TimedAction {
+
+  <span class="kw">public</span> <span class="kw">record</span> Expiry(String eventId) { ... }
+  <span class="kw">public</span> <span class="kw">static</span> <span class="kw">void</span> schedule(
+      TimerScheduler timers, ComponentClient componentClient, String eventId, long dueAt) { ... }
+  <span class="kw">public</span> Effect expire(Expiry expiry) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#8a8a8a"></span><span class="sec-title">MaintainedRefreshAction</span><span class="sec-type">Timed Action</span><span class="sec-id mono">maintained-refresh</span><span class="sec-hint">Reads one MAINTAINED entity type from its source, then schedules the next read.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Reads one MAINTAINED entity type from its source, then schedules the next read. The next read is scheduled first, so a read that fails or throws does not end the chain. A connector that is gone or inactive, or a type no longer MAINTAINED, ends it; activating the connector starts a new one.</p>
+    <div class="code"><div class="code-bar mono">MaintainedRefreshAction.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"maintained-refresh"</span>)
+<span class="kw">public</span> <span class="kw">class</span> MaintainedRefreshAction <span class="kw">extends</span> TimedAction {
+
+  <span class="kw">public</span> <span class="kw">record</span> Tick(String orgId, String pack, String entityType, long scheduledAt) { ... }
+  <span class="kw">public</span> <span class="kw">static</span> <span class="kw">void</span> start(TimerScheduler timers, ComponentClient componentClient, String orgId, ConnectorPack pack) { ... }
+  <span class="kw">public</span> <span class="kw">static</span> <span class="kw">void</span> stop(TimerScheduler timers, String orgId, ConnectorPack pack) { ... }
+  <span class="kw">public</span> Effect tick(Tick tick) { ... }
+}</div></div>
+  </div>
+</details>
+<details class="sec">
+  <summary><span class="chev">&#9654;</span><span class="sec-dot" style="background:#8a8a8a"></span><span class="sec-title">MonitorTimedAction</span><span class="sec-type">Timed Action</span><span class="sec-id mono">monitor-timed-action</span><span class="sec-hint">Starts one run of a monitor at its scheduled time and schedules the next.</span></summary>
+  <div class="sec-body">
+    <p class="comp-desc">Starts one run of a monitor at its scheduled time and schedules the next. The run's workflow id comes from the scheduled time, so if this action is retried it starts nothing twice. A monitor that is missing or switched off ends the chain; enabling it schedules a new one.</p>
+    <div class="code"><div class="code-bar mono">MonitorTimedAction.java</div>
+    <div class="code-body mono"><span <span class="kw">class</span>="an">@Component</span>(id = <span <span class="kw">class</span>="st">"monitor-timed-action"</span>)
+<span class="kw">public</span> <span class="kw">class</span> MonitorTimedAction <span class="kw">extends</span> TimedAction {
+
+  <span class="kw">public</span> <span class="kw">record</span> Tick(String orgId, String monitorId, long scheduledAt) { ... }
+  <span class="kw">public</span> <span class="kw">static</span> String timerName(String orgId, String monitorId) { ... }
+  <span class="kw">public</span> Effect changed(Tick tick) { ... }
+  <span class="kw">public</span> Effect tick(Tick tick) { ... }
+}</div></div>
+  </div>
+</details>
+
+<div class="foot"><span>Generated by <span class="cmd mono">/akka:docs</span> &middot; docs/index.html</span><span>Akka SDK</span></div>
+</div></body></html>
