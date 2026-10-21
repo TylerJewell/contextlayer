@@ -34,6 +34,7 @@ public class HumanEvidenceConsumer extends Consumer {
       case HumanEventEvent.Decided e -> vote(e.decision(), EvaluationMode.ENFORCING, "vote");
       case HumanEventEvent.Rehearsed e -> vote(e.decision(), EvaluationMode.TEST, "rehearsal");
       case HumanEventEvent.TimedOut e -> timedOut(e);
+      case HumanEventEvent.Withdrawn e -> withdrawn(e);
       default -> { }
     }
     return effects().done();
@@ -60,6 +61,15 @@ public class HumanEvidenceConsumer extends Consumer {
           decision.belowMinimum() ? "below-minimum-review-time" : "minimum-review-time-kept", event.id(), reviewer,
           decision.authority(), event.id(), decision.belowMinimum(), "", decision.submittedAt()));
     }
+  }
+
+  /** A withdrawn event closes without a decision; an action's approval withdrawn by its requester denies the action. */
+  private void withdrawn(HumanEventEvent.Withdrawn withdrawn) {
+    var event = current();
+    new EvidenceRecorder(componentClient).record(new EvidenceRecorder.Fact(event.orgId(), event.controlId(),
+        event.id() + "~withdrawn", EvaluationMode.ENFORCING, "WITHDRAW", "BLOCKED", "withdrawn by the proposer",
+        event.id(), withdrawn.reviewer().subject(), withdrawn.reviewer().authority(), event.id(), false,
+        "HumanGateWithdrawn", withdrawn.at()));
   }
 
   private void timedOut(HumanEventEvent.TimedOut timedOut) {

@@ -16,7 +16,16 @@ public class IdentityEntity extends EventSourcedEntity<IdentityCluster, Identity
       double confidence,
       String source,
       String entityType,
-      String sourceRecordId) {}
+      String sourceRecordId,
+      String addedBy) {
+
+    /** A record a source read or pushed, which no person loaded. */
+    public AddMember(
+        String orgId, String rule, String key, double confidence, String source, String entityType,
+        String sourceRecordId) {
+      this(orgId, rule, key, confidence, source, entityType, sourceRecordId, "");
+    }
+  }
 
   public record Review(String reviewer) {}
 
@@ -34,7 +43,7 @@ public class IdentityEntity extends EventSourcedEntity<IdentityCluster, Identity
     return effects()
         .persist(new IdentityEvent.MemberAdded(
             command.orgId(), command.rule(), command.key(), command.confidence(), command.source(),
-            command.entityType(), command.sourceRecordId()))
+            command.entityType(), command.sourceRecordId(), command.addedBy()))
         .thenReply(state -> state);
   }
 
@@ -68,7 +77,7 @@ public class IdentityEntity extends EventSourcedEntity<IdentityCluster, Identity
   }
 
   public ReadOnlyEffect<IdentityCluster> get() {
-    if (!currentState().exists()) return effects().error("identity cluster not found");
+    if (!currentState().exists()) return effects().error("link not found");
     return effects().reply(currentState());
   }
 

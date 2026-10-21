@@ -1,12 +1,17 @@
 package io.akka.contextlayer.api;
 
+import akka.javasdk.client.ComponentClient;
 import akka.javasdk.http.HttpException;
 import akka.optimize.auth.AuthorizedEndpoint;
 import akka.optimize.auth.Authz;
 import io.akka.contextlayer.auth.Caller;
 import io.akka.contextlayer.auth.Permission;
+import io.akka.contextlayer.application.ReleaseGates;
+import io.akka.contextlayer.application.Sampled;
+import io.akka.contextlayer.application.Verdicts;
 import io.akka.contextlayer.auth.ProjectResolver;
 import io.akka.contextlayer.domain.ScopedId;
+import io.akka.contextlayer.governance.Controls;
 import java.util.EnumSet;
 import java.util.function.Supplier;
 
@@ -24,11 +29,15 @@ abstract class PrincipalEndpoint extends AuthorizedEndpoint {
 
   private final Authz authz;
   private final ProjectResolver projects;
+  private final Verdicts verdicts;
+  private final ComponentClient componentClient;
 
-  protected PrincipalEndpoint(Authz authz, ProjectResolver projects) {
+  protected PrincipalEndpoint(Authz authz, ProjectResolver projects, ComponentClient componentClient) {
     super(authz);
     this.authz = authz;
     this.projects = projects;
+    this.componentClient = componentClient;
+    this.verdicts = new Verdicts(componentClient);
   }
 
   /**
@@ -50,12 +59,24 @@ abstract class PrincipalEndpoint extends AuthorizedEndpoint {
    * proposer of events, and a person must not be able to act under it.
    */
   protected Caller authorize(Permission permission) {
-    var admitted = require(permission);
+    akka.optimize.auth.Caller admitted;
+    try {
+      admitted = require(permission);
+    } catch (RuntimeException refused) { // the rule refuses by throwing
+      refuseCaller(permission, "permission-not-held");
+      throw refused;
+    }
     var subject = switch (admitted) {
       case akka.optimize.auth.Caller.Operator operator -> operator.name();
     };
     if (subject == null || subject.isBlank() || subject.startsWith("system:")) {
+      refuseCaller(permission, "unusable-subject");
       throw HttpException.unauthorized("the token has no usable subject");
+    }
+    ReleaseGates.recordFor(componentClient, project());
+    if (Sampled.firstThisHour(project() + "|" + Controls.CALLER_AUTHORIZATION + "|" + subject + "|" + permission)) {
+      verdicts.guardrail(project(), Controls.CALLER_AUTHORIZATION, Sampled.hourKey(subject + "~" + permission), true,
+          "permission-held", permission.name(), subject);
     }
     var held = EnumSet.of(permission);
     for (var other : Permission.values()) {
@@ -63,6 +84,51 @@ abstract class PrincipalEndpoint extends AuthorizedEndpoint {
     }
     var issuer = requestContext().getJwtClaims().issuer().orElse("unknown");
     return new Caller(subject, issuer, held);
+  }
+
+  /**
+   * Records a refused caller under {@link Controls#CALLER_AUTHORIZATION}. A request whose project cannot be told has
+   * nowhere to be recorded and is refused all the same.
+   */
+  private void refuseCaller(Permission permission, String reason) {
+    String org;
+    try {
+      org = project();
+    } catch (RuntimeException e) {
+      return;
+    }
+    var subject = requestContext().getJwtClaims().subject().orElse("unknown");
+    verdicts.guardrail(org, Controls.CALLER_AUTHORIZATION, Verdicts.once(subject), false, reason, permission.name(),
+        subject);
+  }
+
+  /**
+   * Refuses a request that names something of another project, and records the refusal under
+   * {@link Controls#PROJECT_ISOLATION}; a request that stays in its project is recorded once an hour per caller.
+   *
+   * @param belongs whether the id the request named is one of this project's
+   */
+  protected void requireOwnProject(boolean belongs, String kind, Caller caller) {
+    if (!ownProject(belongs, kind, caller)) throw HttpException.notFound();
+  }
+
+  /** As {@link #requireOwnProject}, for a route that answers the refusal itself. */
+  protected boolean ownProject(boolean belongs, String kind, Caller caller) {
+    if (!belongs) {
+      verdicts.guardrail(project(), Controls.PROJECT_ISOLATION, Verdicts.once(kind), false, "other-project", kind,
+          caller.subject());
+      return false;
+    }
+    if (Sampled.firstThisHour(project() + "|" + Controls.PROJECT_ISOLATION + "|" + caller.subject() + "|" + kind)) {
+      verdicts.guardrail(project(), Controls.PROJECT_ISOLATION, Sampled.hourKey(caller.subject() + "~" + kind), true,
+          "own-project", kind, caller.subject());
+    }
+    return true;
+  }
+
+  /** Records verdicts of the controls a route enforces. */
+  protected Verdicts verdicts() {
+    return verdicts;
   }
 
   private boolean holds(Permission permission) {

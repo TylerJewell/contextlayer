@@ -1,4 +1,4 @@
-"""Small dialogs: a question that needs a typed answer, a yes/no, the save-as-monitor form, and a page to read."""
+"""Small dialogs: a question that needs a typed answer, a yes/no, the save-as-watcher form, and a page to read."""
 
 from __future__ import annotations
 
@@ -121,7 +121,7 @@ class MonitorModal(ModalScreen[dict | None]):
         name, key, every = self._value("name"), self._value("key"), self._value("every")
         problem = self.query_one("#problem", Static)
         if not name:
-            problem.update("Give the monitor a name.")
+            problem.update("Give the watcher a name.")
         elif key not in self._return_fields:
             problem.update("The row key must be one of the returned fields.")
         elif not every.isdigit() or int(every) < 1:

@@ -38,7 +38,7 @@ func (e *env) domains() *cobra.Command {
 		},
 	})
 
-	var description string
+	var description, setRationale string
 	var types, roles, people []string
 	set := &cobra.Command{
 		Use:   "set NAME",
@@ -51,8 +51,12 @@ func (e *env) domains() *cobra.Command {
 			if len(roles) == 0 && len(people) == 0 {
 				return fmt.Errorf("a data domain needs --roles or --people to say who may read it")
 			}
+			if strings.TrimSpace(setRationale) == "" {
+				return fmt.Errorf("changing a data domain needs --rationale")
+			}
 			if _, err := e.run("POST", "/domains/"+url.PathEscape(args[0]), map[string]any{
-				"description": description, "entityTypes": types, "readerRoles": roles, "readerPeople": people}); err != nil {
+				"description": description, "entityTypes": types, "readerRoles": roles, "readerPeople": people,
+				"rationale": setRationale}); err != nil {
 				return err
 			}
 			e.say("Data domain %s now holds %s, readable by %s.", args[0], strings.Join(types, ", "), readers(roles, people))
@@ -63,23 +67,30 @@ func (e *env) domains() *cobra.Command {
 	set.Flags().StringSliceVar(&types, "types", nil, "entity types in the domain, such as Claim,Note")
 	set.Flags().StringSliceVar(&roles, "roles", nil, "roles that may read it: viewer, operator, reviewer, approver, admin")
 	set.Flags().StringSliceVar(&people, "people", nil, "people (subjects) who may read it")
+	set.Flags().StringVar(&setRationale, "rationale", "", "why, in words; recorded with the decision")
 	group.AddCommand(set)
 
-	group.AddCommand(&cobra.Command{
+	var removeRationale string
+	remove := &cobra.Command{
 		Use:   "remove NAME",
 		Short: "Remove a data domain and the join rules that name it",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if strings.TrimSpace(removeRationale) == "" {
+				return fmt.Errorf("removing a data domain needs --rationale")
+			}
 			if !e.confirm(fmt.Sprintf("Remove the %s data domain? Its types become unreadable until assigned elsewhere.", args[0])) {
 				return fmt.Errorf("not confirmed")
 			}
-			if _, err := e.run("POST", "/domains/"+url.PathEscape(args[0])+"/remove", map[string]any{}); err != nil {
+			if _, err := e.run("POST", "/domains/"+url.PathEscape(args[0])+"/remove", map[string]any{"rationale": removeRationale}); err != nil {
 				return err
 			}
 			e.say("Removed the %s data domain.", args[0])
 			return nil
 		},
-	})
+	}
+	remove.Flags().StringVar(&removeRationale, "rationale", "", "why, in words; recorded with the decision")
+	group.AddCommand(remove)
 	group.AddCommand(e.joins())
 	return group
 }
@@ -109,18 +120,24 @@ func (e *env) joins() *cobra.Command {
 	}
 	approve.Flags().StringVar(&rationale, "rationale", "", "why, in words")
 	group.AddCommand(approve)
-	group.AddCommand(&cobra.Command{
+	var revokeRationale string
+	revoke := &cobra.Command{
 		Use:   "revoke A B",
 		Short: "Stop allowing questions to link two data domains",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if _, err := e.run("POST", "/join-rules/revoke", map[string]any{"a": args[0], "b": args[1]}); err != nil {
+			if strings.TrimSpace(revokeRationale) == "" {
+				return fmt.Errorf("revoking a join needs --rationale")
+			}
+			if _, err := e.run("POST", "/join-rules/revoke", map[string]any{"a": args[0], "b": args[1], "rationale": revokeRationale}); err != nil {
 				return err
 			}
 			e.say("Questions can no longer link %s and %s.", args[0], args[1])
 			return nil
 		},
-	})
+	}
+	revoke.Flags().StringVar(&revokeRationale, "rationale", "", "why, in words; recorded with the decision")
+	group.AddCommand(revoke)
 	return group
 }
 

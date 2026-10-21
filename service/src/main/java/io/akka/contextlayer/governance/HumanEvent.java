@@ -108,6 +108,17 @@ public record HumanEvent(
     return (dueAt - now) * 5 < total ? "at-risk" : "running";
   }
 
+  /**
+   * The detail key listing, comma-separated, the people who supplied what the event is about, such as the records of
+   * an identity review. With {@code contributors} in the control's independence, none of them may decide it.
+   */
+  public static final String CONTRIBUTORS = "_contributors";
+
+  public List<String> contributors() {
+    var listed = detail.getOrDefault(CONTRIBUTORS, "");
+    return listed.isBlank() ? List.of() : List.of(listed.split(","));
+  }
+
   public boolean proposedBySystem() {
     return proposedBy.isBlank() || proposedBy.startsWith("system:");
   }
@@ -117,6 +128,9 @@ public record HumanEvent(
   public Checked<HumanEventEvent> claim(Reviewer reviewer, long now) {
     var gate = openFor(reviewer, now);
     if (gate != null) return Checked.refuse(gate);
+    // Someone who may not decide may not hold the event either, or the people who may would be kept from it.
+    var barred = independence(reviewer);
+    if (barred != null) return Checked.refuse(barred);
     var current = effectiveState(now);
     if (current == HumanState.CHANGES_REQUESTED) {
       return Checked.refuse(Refusal.conflict("the event is with its proposer for changes"));
@@ -159,9 +173,8 @@ public record HumanEvent(
       return Checked.refuse(Refusal.conflict("the event is with its proposer for changes"));
     }
     if (votedBy(reviewer.subject())) return Checked.refuse(Refusal.conflict("you have already voted on this event"));
-    if (policy.independence().contains("proposer") && !proposedBySystem() && reviewer.subject().equals(proposedBy)) {
-      return Checked.refuse(Refusal.forbidden("the person who proposed this cannot decide it"));
-    }
+    var barred = independence(reviewer);
+    if (barred != null) return Checked.refuse(barred);
     // A decision needs a claim, because the claim is when the person is shown the event and the
     // minimum review time counts from it. A control that measures no review time needs no claim, and
     // a rehearsal never takes the event.
@@ -400,6 +413,17 @@ public record HumanEvent(
     if (now > dueAt) return Refusal.conflict("the event is past its due time");
     if (!reviewer.holdsAnyOf(currentRoles())) {
       return Refusal.forbidden("requires one of the roles " + currentRoles());
+    }
+    return null;
+  }
+
+  /** Why the control's independence rules bar this person from deciding, or null when they do not. */
+  private Refusal independence(Reviewer reviewer) {
+    if (policy.independence().contains("proposer") && !proposedBySystem() && reviewer.subject().equals(proposedBy)) {
+      return Refusal.forbidden("the person who proposed this cannot decide it");
+    }
+    if (policy.independence().contains("contributors") && contributors().contains(reviewer.subject())) {
+      return Refusal.forbidden("a person who supplied what is under review cannot decide it");
     }
     return null;
   }

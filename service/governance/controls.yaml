@@ -1,40 +1,790 @@
 # The controls of the system contextlayer, as a controls draft the Akka local console reads, decides and signs.
 #
-# Every row is an officer row: the organisation wrote it, and everything the service needs to enforce it (its
-# mechanism, proof event, boundary and human_config) is in the row, so a signed bundle carries it whole. The
-# regulations, frameworks and standards a control meets are listed under `implements` as ids of corpus 2026-09; they
-# are references, not definitions, and no corpus is held here.
+# Every row is one control with exactly one of Verify's five mechanisms (sanitizer, guardrail, human, eval, gate) and
+# one of that mechanism's flavors, its sub-type. Guardrails name their hook; sanitizers, evals and gates carry the
+# configuration block Verify defines for them (sanitizer_config, eval_config, gate_config) and humans their
+# human_config. Each mechanism has one proof event, the record every verdict of its controls is written as.
+#
+# Every row is an officer row: the organisation wrote it, and everything the service needs to enforce it is in the
+# row, so a signed bundle carries it whole. The regulations, frameworks and standards a control meets are listed under
+# `implements` as ids of corpus 2026-09; they are references, not definitions, and no corpus is held here.
+#
+# Verify's guardrail hooks are points in an agent's lifecycle. Guardrails here that act on a call the service makes
+# (an action, a source read, a question) or on something that is not a call (data arriving, a caller, a definition, a
+# case closing) declare before-tool-call; hooks for them are a proposal to Verify. gate_config.runs_at is likewise a
+# proposed extension: at-deployment gates run once, inside the release, when it first starts.
 #
 # A row's decision (sign_off) is made in the console, which signs the decided rows as the next bundle into
 # governance/signed/. Each row has a stable row_id, the one key every piece of evidence the service emits carries.
 # Changing a control changes the catalog digest, which every evidence record carries.
 #
-# minimum_review_seconds is measured from when a person claims an event, so a control whose
-# decision is made in one call (releases, stages, packs) sets it to 0: the
-# decision is recorded with its rationale and authority, but no review time exists to measure.
+# minimum_review_seconds is measured from when a person claims an event, so a control whose decision is made in one
+# call sets it to 0: the decision is recorded with its rationale and authority, but no review time exists to measure.
 schema_version: 1
 matrix_id: contextlayer
-revision: 1
+revision: 59
 rows:
+
   - row_id: custom-cl0001
-    name: Personal data is masked before a model call
+    name: Model-Call PII Mask
     mechanism: sanitizer
+    flavor: sanitizer-pii
     lifecycle: preventative
     corpus_ref: null
-    implements: [iso-42001.a-7-4.sanitizer]
+    implements: [iso-42001.a-7-4.sanitizer, owasp-llm-top10.llm06.sanitizer, gdpr-core.art5-1-c.sanitizer]
     provenance:
       kind: officer
       authored_by:
         user: tylerjewell@gmail.com
         at: '2026-10-20T00:00:00Z'
-    summary: Email, phone, card, IBAN and IP address values are masked in text sent to a model.
+    summary: >-
+      Email, phone, card, IBAN and IP address values are masked in text sent to a model, by the runtime's
+      sanitizers on every agent and by the service before the classify call.
+    proof_event: SanitizerApplied
+    boundary: BEFORE_LLM_CALL
+    applies_to: [deployer]
+    sanitizer_config:
+      data_classes: [pii, pci, financial]
+      injection_point: before-llm-call
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:21Z'
+
+  - row_id: custom-cl0017
+    name: Approver View Mask
+    mechanism: sanitizer
+    flavor: sanitizer-pii
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [iso-42001.a-8.sanitizer]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      The payload of an action shown to the person asked to approve it is masked and cut to 300 characters.
+    proof_event: SanitizerApplied
+    boundary: BEFORE_AGENT_RESPONSE
+    applies_to: [deployer]
+    sanitizer_config:
+      data_classes: [pii, pci, financial]
+      injection_point: before-agent-response
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:21Z'
+
+  - row_id: custom-cl0018
+    name: Notification Mask
+    mechanism: sanitizer
+    flavor: sanitizer-pii
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [iso-27001.a8-12.sanitizer, iso-27701.s7-5.sanitizer]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      A webhook, Slack or email message about a case or a decision carries ids only, never a record's
+      contents, and its title and summary are masked.
+    proof_event: SanitizerApplied
+    boundary: BEFORE_TOOL_CALL
+    applies_to: [deployer]
+    sanitizer_config:
+      data_classes: [pii, pci, financial]
+      injection_point: before-tool-call
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:21Z'
+
+  - row_id: custom-cl0019
+    name: Link Key Hashing
+    mechanism: sanitizer
+    flavor: sanitizer-pii
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [gdpr-core.art4-5-pseudonymisation]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      The key two records matched on, often an email address, is hashed in the link review's id and kept out
+      of its summary.
+    proof_event: SanitizerApplied
+    boundary: BEFORE_AGENT_RESPONSE
+    applies_to: [deployer]
+    sanitizer_config:
+      data_classes: [pii]
+      injection_point: before-agent-response
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:21Z'
+
+  - row_id: custom-cl0020
+    name: Route Secret Redaction
+    mechanism: sanitizer
+    flavor: sanitizer-secret
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [owasp-agent-control-standard.memory.sanitizer-secret]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      The secret part of a notification route's address, such as a webhook token in its path, is hidden
+      whenever routes are shown.
+    proof_event: SanitizerApplied
+    boundary: BEFORE_AGENT_RESPONSE
+    applies_to: [deployer]
+    sanitizer_config:
+      data_classes: [secret, credential]
+      injection_point: before-agent-response
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:21Z'
+
+  - row_id: custom-cl0010
+    name: Jailbreak Detector
+    mechanism: guardrail
+    flavor: guardrail-llm-content-evaluation
+    hook: before-llm-call
+    lifecycle: detective
+    corpus_ref: null
+    implements: [owasp-agent-control-standard.prompt-injection.content-eval]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-20T00:00:00Z'
+    summary: >-
+      The runtime compares the text of each model call with known jailbreak examples and reports a match. It
+      is report-only, so its records are advisory and do not count as proof until it blocks.
     proof_event: GuardrailDecisionRecorded
     boundary: BEFORE_LLM_CALL
     applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:21Z'
+
+  - row_id: custom-cl0013
+    name: Shape-Only Drafting
+    mechanism: guardrail
+    flavor: guardrail-llm-content-evaluation
+    hook: before-llm-call
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [iso-27701.s7-4-5.sanitizer, iso-42001.a-7-4.sanitizer]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-20T00:00:00Z'
+    summary: >-
+      To turn a request in words into a question, the model is shown entity types, field names and kinds, and
+      the few values of fields that hold a handful of categories, never a record. The runtime's question-shape
+      guardrail refuses any call whose data block is more than that shape.
+    proof_event: GuardrailDecisionRecorded
+    boundary: BEFORE_LLM_CALL
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:21Z'
+
+  - row_id: custom-cl0021
+    name: Classify Field Allow-List
+    mechanism: guardrail
+    flavor: guardrail-llm-content-evaluation
+    hook: before-llm-call
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [iso-42001.a-7-4.sanitizer, gdpr-core.art5-1-c.sanitizer]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      A playbook's classify step sends the model only the evidence fields the step lists; every other field of
+      the record stays out of the call.
+    proof_event: GuardrailDecisionRecorded
+    boundary: BEFORE_LLM_CALL
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:21Z'
+
+  - row_id: custom-cl0022
+    name: Catalog-Bound Compliance Questions
+    mechanism: guardrail
+    flavor: guardrail-llm-content-evaluation
+    hook: after-llm-response
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [eu-ai-act.art14.4.c]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      A model only chooses which of a fixed list of compliance questions was asked, and about which control. A
+      choice that names a question or a control the catalog does not have is not answered and goes back to the
+      person.
+    proof_event: GuardrailDecisionRecorded
+    boundary: AFTER_LLM_RESPONSE
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:21Z'
 
   - row_id: custom-cl0002
-    name: A model may only answer with a label the playbook allows
+    name: Allowed Labels Only
     mechanism: guardrail
+    flavor: guardrail-llm-content-evaluation
+    hook: after-llm-response
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [aws-agentic-scoping.agency-perimeter]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-20T00:00:00Z'
+    summary: 'A model''s answer outside the labels the playbook step lists is refused and the step fails.'
+    proof_event: GuardrailDecisionRecorded
+    boundary: AFTER_LLM_RESPONSE
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:21Z'
+
+  - row_id: custom-cl0016
+    name: Facts-Only Wording
+    mechanism: guardrail
+    flavor: guardrail-llm-content-evaluation
+    hook: after-llm-response
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [eu-ai-act.art14.4.c]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-20T00:00:00Z'
+    summary: >-
+      The facts of a compliance answer are computed from recorded data and a model words them. Wording that
+      adds a number, a control or a verdict the facts do not state is replaced by the facts in plain form.
+    proof_event: GuardrailDecisionRecorded
+    boundary: AFTER_LLM_RESPONSE
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:21Z'
+
+  - row_id: custom-cl0023
+    name: Draft Schema Check
+    mechanism: guardrail
+    flavor: guardrail-llm-content-evaluation
+    hook: after-llm-response
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [eu-ai-act.art15.4]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      A question drafted by a model must name only types, fields and relationships the schema has and follow
+      the question rules. A draft that fails is sent back once with the reasons, then refused.
+    proof_event: GuardrailDecisionRecorded
+    boundary: AFTER_LLM_RESPONSE
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:21Z'
+
+  - row_id: custom-cl0007
+    name: Never-by-Playbook Actions
+    mechanism: guardrail
+    flavor: guardrail-tool-permission
+    hook: before-tool-call
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [owasp-agent-control-standard.tool-authz.action-class-allowlist, aws-agentic-scoping.agency-perimeter]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-20T00:00:00Z'
+    summary: >-
+      An action classed never-by-assistant, such as releasing a payment, is refused whatever playbook asks for
+      it.
+    proof_event: GuardrailDecisionRecorded
+    boundary: BEFORE_TOOL_CALL
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:21Z'
+
+  - row_id: custom-cl0024
+    name: Stage-Gated Actions
+    mechanism: guardrail
+    flavor: guardrail-tool-permission
+    hook: before-tool-call
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [aicpa-soc2.cc8-1.change-authorization, aws-agentic-scoping.agency-perimeter]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      A playbook in DRAFT takes no action, a SHADOW playbook's action is recorded and never sent, and a LIVE
+      playbook acts only with an approved release.
+    proof_event: GuardrailDecisionRecorded
+    boundary: BEFORE_TOOL_CALL
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:21Z'
+
+  - row_id: custom-cl0025
+    name: Live-Connector Actions Only
+    mechanism: guardrail
+    flavor: guardrail-tool-permission
+    hook: before-tool-call
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [owasp-agent-control-standard.tool-authz.action-class-allowlist]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      An action type no connector declares, or one from a connector pack that is not LIVE, is refused.
+    proof_event: GuardrailDecisionRecorded
+    boundary: BEFORE_TOOL_CALL
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:21Z'
+
+  - row_id: custom-cl0026
+    name: Halt Enforcement
+    mechanism: guardrail
+    flavor: guardrail-tool-permission
+    hook: before-tool-call
+    lifecycle: corrective
+    corpus_ref: null
+    implements: [eu-ai-act.art14.4.e, argus.jsp936.halt-provision-exercised]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      While a playbook is halted its action requests are refused, an action approved before the halt does not
+      run, and its runs stop before their next step.
+    proof_event: GuardrailDecisionRecorded
+    boundary: BEFORE_TOOL_CALL
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:22Z'
+
+  - row_id: custom-cl0027
+    name: Approved Release Runs Only
+    mechanism: guardrail
+    flavor: guardrail-tool-permission
+    hook: before-tool-call
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [aicpa-soc2.cc8-1.change-authorization]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      A playbook run executes the latest approved release, identified by the hash of its definition; a DRAFT
+      playbook, or one with no approved release, runs nothing.
+    proof_event: GuardrailDecisionRecorded
+    boundary: BEFORE_TOOL_CALL
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:22Z'
+
+  - row_id: custom-cl0028
+    name: Exactly-Once Actions
+    mechanism: guardrail
+    flavor: guardrail-tool-permission
+    hook: before-tool-call
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [eu-ai-act.art15.4]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      An action is sent at most once: a repeated request with the same key is not sent again, every attempt
+      carries the same Idempotency-Key, and a send whose outcome is unknown is never retried.
+    proof_event: GuardrailDecisionRecorded
+    boundary: BEFORE_TOOL_CALL
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:22Z'
+
+  - row_id: custom-cl0009
+    name: Allowed Hosts Only
+    mechanism: guardrail
+    flavor: guardrail-tool-permission
+    hook: before-tool-call
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [eu-ai-act.art15.5, owasp-agentic-top10.tool-misuse]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-20T00:00:00Z'
+    summary: >-
+      A source read, an action, a webhook or an email goes only to a host on the egress allow list, follows no
+      redirect, and stays on the source's host after its path is filled in.
+    proof_event: GuardrailDecisionRecorded
+    boundary: BEFORE_TOOL_CALL
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:22Z'
+
+  - row_id: custom-cl0029
+    name: Credentials by Reference
+    mechanism: guardrail
+    flavor: guardrail-tool-permission
+    hook: before-tool-call
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [owasp-agentic-top10.identity-privilege-abuse]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      A connector names its credential by reference, never the secret itself; the reference is resolved when
+      the call is made and the credential goes only in the Authorization header. A call whose credential does
+      not resolve is not sent.
+    proof_event: GuardrailDecisionRecorded
+    boundary: BEFORE_TOOL_CALL
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:22Z'
+
+  - row_id: custom-cl0030
+    name: Bounded Source Reads
+    mechanism: guardrail
+    flavor: guardrail-tool-permission
+    hook: before-tool-call
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [owasp-agentic-top10.tool-misuse, owasp-agentic-top10.cascading-failures]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      A source read sends only the filters the connector declares, uses GET, and stops at the connector's
+      limits on pages, records, bytes, time and calls per minute.
+    proof_event: GuardrailDecisionRecorded
+    boundary: BEFORE_TOOL_CALL
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:22Z'
+
+  - row_id: custom-cl0031
+    name: Governed Intake Only
+    mechanism: guardrail
+    flavor: guardrail-tool-permission
+    hook: before-tool-call
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [aicpa-soc2.pi1-2.input-completeness-accuracy, owasp-agentic-top10.context-manipulation]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      Data enters only through a connector pack that is active: a read of an inactive pack is refused, a
+      pushed change for a type no active pack streams is held, and a change older than the one held is
+      ignored.
+    proof_event: GuardrailDecisionRecorded
+    boundary: BEFORE_TOOL_CALL
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:22Z'
+
+  - row_id: custom-cl0015
+    name: Granted Domains Only
+    mechanism: guardrail
+    flavor: guardrail-tool-permission
+    hook: before-tool-call
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [nist-sp-800-53.ac.access-control, iso-27701.s7-4-5.sanitizer]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-20T00:00:00Z'
+    summary: >-
+      Once a project has data domains, every read of records (a question, a followed question, a watcher, a
+      draft's schema, a case's evidence, a refresh, an ingest or a pushed change) is refused when it touches a
+      type outside the domains its caller is granted.
+    proof_event: GuardrailDecisionRecorded
+    boundary: BEFORE_TOOL_CALL
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:22Z'
+
+  - row_id: custom-cl0032
+    name: Approved Joins Only
+    mechanism: guardrail
+    flavor: guardrail-tool-permission
+    hook: before-tool-call
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [iso-27701.s7-4-5.sanitizer, nist-sp-800-53.ac-23.sanitizer]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      A question that links records of two data domains is refused unless an approved join rule covers that
+      pair.
+    proof_event: GuardrailDecisionRecorded
+    boundary: BEFORE_TOOL_CALL
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:22Z'
+
+  - row_id: custom-cl0033
+    name: Confirmed Links Only
+    mechanism: guardrail
+    flavor: guardrail-tool-permission
+    hook: before-tool-call
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [aicpa-soc2.pi1-2.input-completeness-accuracy]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      A question that joins records that are the same person or thing follows only links a reviewer confirmed;
+      matches still waiting for review are left out and counted in the answer.
+    proof_event: GuardrailDecisionRecorded
+    boundary: BEFORE_TOOL_CALL
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:22Z'
+
+  - row_id: custom-cl0034
+    name: Read-Only Questions
+    mechanism: guardrail
+    flavor: guardrail-tool-permission
+    hook: before-tool-call
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [owasp-agentic-top10.unexpected-code-execution]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      A question runs in a read-only transaction, every value is passed as a parameter, names must match
+      strict patterns, and it stays within the limits on conditions, links, depth, fields and rows.
+    proof_event: GuardrailDecisionRecorded
+    boundary: BEFORE_TOOL_CALL
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:22Z'
+
+  - row_id: custom-cl0035
+    name: Project Isolation
+    mechanism: guardrail
+    flavor: guardrail-tool-permission
+    hook: before-tool-call
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [nist-sp-800-53.ac.access-control]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      Every id is scoped to the project and every graph statement carries it, so a request naming an event, a
+      case or an interaction of another project is refused.
+    proof_event: GuardrailDecisionRecorded
+    boundary: BEFORE_TOOL_CALL
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:22Z'
+
+  - row_id: custom-cl0036
+    name: Caller Authorization
+    mechanism: guardrail
+    flavor: guardrail-tool-permission
+    hook: before-tool-call
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [nist-sp-800-53.ac.access-control, owasp-agentic-top10.identity-privilege-abuse]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      Every route needs a signed token and the platform permission it names; a subject that names one of the
+      service's own parts (system:) is refused.
+    proof_event: GuardrailDecisionRecorded
+    boundary: BEFORE_TOOL_CALL
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:22Z'
+
+  - row_id: custom-cl0037
+    name: Bounded Playbook Definitions
+    mechanism: guardrail
+    flavor: guardrail-tool-permission
+    hook: before-tool-call
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [owasp-agentic-top10.cascading-failures, uk-mod-jsp936.s3.safe-failure]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      A playbook release is accepted only when it parses as a playbook: at most 20 steps, no loops, each
+      classify step listing its fields and 2 to 12 labels. A placeholder with no value fails its step rather
+      than sending guessed text.
+    proof_event: GuardrailDecisionRecorded
+    boundary: BEFORE_TOOL_CALL
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:22Z'
+
+  - row_id: custom-cl0038
+    name: Valid Connector Packs
+    mechanism: guardrail
+    flavor: guardrail-tool-permission
+    hook: before-tool-call
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [owasp-agentic-top10.agentic-supply-chain]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      A connector pack version is imported only when every read declares a call rate, every action declares a
+      risk class, credentials are references, and paging, size and freshness are within limits.
+    proof_event: GuardrailDecisionRecorded
+    boundary: BEFORE_TOOL_CALL
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:22Z'
+
+  - row_id: custom-cl0039
+    name: Complete Runs Close Cases
+    mechanism: guardrail
+    flavor: guardrail-tool-permission
+    hook: before-tool-call
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [aicpa-soc2.pi1-3.processing-error-detection]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      A watcher run that could not read every source, or reached its row limit, closes no case: a case closes
+      only on a complete answer.
+    proof_event: GuardrailDecisionRecorded
+    boundary: BEFORE_TOOL_CALL
+    applies_to: [deployer]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:22Z'
+
+  - row_id: custom-cl0003
+    name: Risky Action Approval
+    mechanism: human
+    flavor: human-system-authorization
     lifecycle: preventative
     corpus_ref: null
     implements: [aws-agentic-scoping.scope2-human-approval]
@@ -44,24 +794,8 @@ rows:
         user: tylerjewell@gmail.com
         at: '2026-10-20T00:00:00Z'
     summary: >-
-      A model's answer outside the labels the playbook step lists is refused and the step fails. The runtime's
-      label-allowed-evaluator also judges every classifier interaction from its ledger and records the verdict.
-    proof_event: GuardrailDecisionRecorded
-    boundary: WORKFLOW_STEP
-    applies_to: [deployer]
-
-  - row_id: custom-cl0003
-    name: A playbook action above the autonomy limit needs a person's approval
-    mechanism: human
-    lifecycle: preventative
-    corpus_ref: null
-    implements: [aws-agentic-scoping.scope2-human-approval]
-    provenance:
-      kind: officer
-      authored_by:
-        user: tylerjewell@gmail.com
-        at: '2026-10-20T00:00:00Z'
-    summary: Medium and high risk actions wait for a person who did not request them.
+      Medium and high risk actions wait for a person who did not request them, and are denied when nobody
+      decides within the deadline.
     proof_event: HumanDecisionRecorded
     boundary: WORKFLOW_STEP
     applies_to: [deployer]
@@ -83,10 +817,15 @@ rows:
       rationale_required: true
       minimum_review_seconds: 10
       enforce_minimum: false
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:22Z'
 
   - row_id: custom-cl0004
-    name: Identity links that join records are confirmed by a reviewer
+    name: Link Review
     mechanism: human
+    flavor: human-domain-decision
     lifecycle: preventative
     corpus_ref: null
     implements: [eu-ai-act.art14.4.d]
@@ -95,7 +834,10 @@ rows:
       authored_by:
         user: tylerjewell@gmail.com
         at: '2026-10-20T00:00:00Z'
-    summary: Records of different types are joined only through links a reviewer confirmed.
+    summary: >-
+      Records from different sources are treated as the same person or thing only through links a reviewer
+      confirmed, whatever key they matched on: an email address, a name and date of birth, or a key a
+      connector declares such as a SKU. The person who loaded the records cannot confirm them.
     proof_event: HumanDecisionRecorded
     boundary: STATE_TRANSITION
     applies_to: [deployer]
@@ -107,7 +849,7 @@ rows:
       roles: [reviewer]
       review_mode: SINGLE
       required: 1
-      independence: []
+      independence: [contributors]
       accountable_owner: reviewer
       sla_target: P7D
       timeout_behaviour: RAISE_TIMEOUT
@@ -117,10 +859,15 @@ rows:
       rationale_required: true
       minimum_review_seconds: 5
       enforce_minimum: false
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:22Z'
 
   - row_id: custom-cl0005
-    name: A playbook release and its stage changes are approved by its owner
+    name: Release Approval
     mechanism: human
+    flavor: human-system-authorization
     lifecycle: preventative
     corpus_ref: null
     implements: [aicpa-soc2.cc8-1.change-authorization]
@@ -129,7 +876,7 @@ rows:
       authored_by:
         user: tylerjewell@gmail.com
         at: '2026-10-20T00:00:00Z'
-    summary: A release becomes runnable, and a playbook changes stage, only on its owner's decision.
+    summary: 'A playbook release becomes runnable only on its owner''s decision.'
     proof_event: HumanDecisionRecorded
     boundary: STATE_TRANSITION
     applies_to: [deployer]
@@ -151,10 +898,56 @@ rows:
       rationale_required: true
       minimum_review_seconds: 0
       enforce_minimum: false
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:22Z'
+
+  - row_id: custom-cl0040
+    name: Stage Change Approval
+    mechanism: human
+    flavor: human-system-authorization
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [aicpa-soc2.cc8-1.change-authorization]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      A playbook moves between DRAFT, SHADOW and LIVE only on its owner's decision; SHADOW needs a release and
+      LIVE an approved one.
+    proof_event: HumanDecisionRecorded
+    boundary: STATE_TRANSITION
+    applies_to: [deployer]
+    human_config:
+      flavor: human-system-authorization
+      subject_kind: change
+      mode: HITL
+      blocking: true
+      roles: [approver]
+      review_mode: SINGLE
+      required: 1
+      independence: []
+      accountable_owner: approver
+      sla_target: P3D
+      timeout_behaviour: RAISE_TIMEOUT
+      timeout_default: null
+      escalation_chain: [approver, admin]
+      allowed_actions: [APPROVE, DENY, ESCALATE]
+      rationale_required: true
+      minimum_review_seconds: 0
+      enforce_minimum: false
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:23Z'
 
   - row_id: custom-cl0006
-    name: A connector pack goes live only on someone else's activation
+    name: Four-Eyes Connector Activation
     mechanism: human
+    flavor: human-system-authorization
     lifecycle: preventative
     corpus_ref: null
     implements: [aicpa-soc2.cc8-1.change-authorization]
@@ -163,7 +956,7 @@ rows:
       authored_by:
         user: tylerjewell@gmail.com
         at: '2026-10-20T00:00:00Z'
-    summary: The person who imported a pack version cannot be the one who activates it.
+    summary: The person who imported a connector pack version cannot be the one who activates it.
     proof_event: HumanDecisionRecorded
     boundary: STATE_TRANSITION
     applies_to: [deployer]
@@ -185,85 +978,63 @@ rows:
       rationale_required: true
       minimum_review_seconds: 0
       enforce_minimum: false
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:23Z'
 
-  - row_id: custom-cl0007
-    name: Actions a playbook may never take are refused by policy
-    mechanism: gate
-    lifecycle: preventative
+  - row_id: custom-cl0041
+    name: Connector Deactivation
+    mechanism: human
+    flavor: human-system-authorization
+    lifecycle: corrective
     corpus_ref: null
-    implements: [aws-agentic-scoping.scope2-human-approval]
+    implements: [aicpa-soc2.cc8-1.change-authorization]
     provenance:
       kind: officer
       authored_by:
         user: tylerjewell@gmail.com
-        at: '2026-10-20T00:00:00Z'
-    summary: Action policy refuses actions classed never-by-assistant, and any action from a playbook that is not live.
-    proof_event: ControlEvaluationRecorded
-    boundary: WORKFLOW_STEP
-    applies_to: [deployer]
-
-  - row_id: custom-cl0008
-    name: Rushed human decisions are counted
-    mechanism: eval
-    lifecycle: detective
-    corpus_ref: null
-    implements: [eu-ai-act.art14.5.rubber-stamp-rate]
-    provenance:
-      kind: officer
-      authored_by:
-        user: tylerjewell@gmail.com
-        at: '2026-10-20T00:00:00Z'
-    summary: A decision submitted before the control's minimum review time is flagged below-minimum.
+        at: '2026-10-21T00:00:00Z'
+    summary: 'Taking a connector pack out of service is an approver''s decision, recorded with a reason.'
     proof_event: HumanDecisionRecorded
     boundary: STATE_TRANSITION
     applies_to: [deployer]
-
-  - row_id: custom-cl0009
-    name: Calls to a source go only to allowed hosts
-    mechanism: gate
-    lifecycle: preventative
-    corpus_ref: null
-    implements: [eu-ai-act.art15.4]
-    provenance:
-      kind: officer
-      authored_by:
-        user: tylerjewell@gmail.com
-        at: '2026-10-20T00:00:00Z'
-    summary: A source call to a host outside the egress allow list is refused before it is sent.
-    proof_event: ControlEvaluationRecorded
-    boundary: BEFORE_TOOL_CALL
-    applies_to: [deployer]
-
-  - row_id: custom-cl0010
-    name: Jailbreak-like text sent to a model is detected
-    mechanism: guardrail
-    lifecycle: detective
-    corpus_ref: null
-    implements: [owasp-agent-control-standard.prompt-injection.content-eval]
-    provenance:
-      kind: officer
-      authored_by:
-        user: tylerjewell@gmail.com
-        at: '2026-10-20T00:00:00Z'
-    summary: >-
-      The runtime compares the text of each model call with known jailbreak examples and reports a
-      match. It is report-only, so its records are advisory and do not count as proof until it blocks.
-    proof_event: GuardrailDecisionRecorded
-    boundary: BEFORE_LLM_CALL
-    applies_to: [deployer]
+    human_config:
+      flavor: human-system-authorization
+      subject_kind: change
+      mode: HITL
+      blocking: true
+      roles: [approver]
+      review_mode: SINGLE
+      required: 1
+      independence: []
+      accountable_owner: approver
+      sla_target: P3D
+      timeout_behaviour: RAISE_TIMEOUT
+      timeout_default: null
+      escalation_chain: [approver, admin]
+      allowed_actions: [APPROVE, DENY, ESCALATE]
+      rationale_required: true
+      minimum_review_seconds: 0
+      enforce_minimum: false
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:23Z'
 
   - row_id: custom-cl0011
-    name: An approver can halt a playbook at once
+    name: Emergency Halt
     mechanism: human
+    flavor: human-halt
     lifecycle: corrective
     corpus_ref: null
-    implements: [argus.jsp936.halt-provision-exercised]
+    implements: [argus.jsp936.halt-provision-exercised, eu-ai-act.art14.4.e]
     provenance:
       kind: officer
       authored_by:
         user: tylerjewell@gmail.com
         at: '2026-10-20T00:00:00Z'
-    summary: One approver can stop a playbook; its actions are refused and its runs stop until it is restarted.
+    summary: One approver can stop a playbook at once.
     proof_event: HumanDecisionRecorded
     boundary: STATE_TRANSITION
     applies_to: [deployer]
@@ -285,10 +1056,15 @@ rows:
       rationale_required: true
       minimum_review_seconds: 0
       enforce_minimum: false
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:23Z'
 
   - row_id: custom-cl0012
-    name: A halted playbook is restarted only by two different approvers
+    name: Two-Person Restart
     mechanism: human
+    flavor: human-halt
     lifecycle: preventative
     corpus_ref: null
     implements: [argus.jsp936.halt-provision-exercised]
@@ -297,7 +1073,9 @@ rows:
       authored_by:
         user: tylerjewell@gmail.com
         at: '2026-10-20T00:00:00Z'
-    summary: Stopping is quick and starting again is not; a restart needs two approvers who each give a reason.
+    summary: >-
+      Stopping is quick and starting again is not; a restart needs two different approvers who each give a
+      reason.
     proof_event: HumanDecisionRecorded
     boundary: STATE_TRANSITION
     applies_to: [deployer]
@@ -319,39 +1097,26 @@ rows:
       rationale_required: true
       minimum_review_seconds: 0
       enforce_minimum: false
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:23Z'
 
-  - row_id: custom-cl0013
-    name: A model drafting a question sees the shape of the data, never the records
-    mechanism: guardrail
+  - row_id: custom-cl0014
+    name: Domain Join Approval
+    mechanism: human
+    flavor: human-system-authorization
     lifecycle: preventative
     corpus_ref: null
-    implements: [iso-27701.s7-4-5-minimisation-sanitizer]
+    implements: [iso-27701.s7-4-5.sanitizer]
     provenance:
       kind: officer
       authored_by:
         user: tylerjewell@gmail.com
         at: '2026-10-20T00:00:00Z'
     summary: >-
-      To turn a request in words into a question, the model is shown entity types, field names and
-      kinds, and the few values of fields that hold a handful of categories. The runtime's question-shape
-      guardrail refuses any call whose data block is more than that shape. The draft is checked against the
-      schema, and a person reads and runs the question; the model never runs it.
-    proof_event: GuardrailDecisionRecorded
-    boundary: BEFORE_LLM_CALL
-    applies_to: [deployer]
-
-  - row_id: custom-cl0014
-    name: Records of two data domains are linked in one question only under an approved join rule
-    mechanism: human
-    lifecycle: preventative
-    corpus_ref: null
-    implements: [iso-27701.s7-4-5-minimisation-sanitizer]
-    provenance:
-      kind: officer
-      authored_by:
-        user: tylerjewell@gmail.com
-        at: '2026-10-20T00:00:00Z'
-    summary: Linking data domains, such as claims and wealth, is approved by someone other than whoever last changed either domain.
+      A join rule linking two data domains, such as claims and wealth, is approved by someone other than
+      whoever last changed either domain.
     proof_event: HumanDecisionRecorded
     boundary: STATE_TRANSITION
     applies_to: [deployer]
@@ -373,38 +1138,583 @@ rows:
       rationale_required: true
       minimum_review_seconds: 0
       enforce_minimum: false
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:23Z'
 
-  - row_id: custom-cl0015
-    name: A question reads only the data domains its asker is granted
-    mechanism: gate
+  - row_id: custom-cl0042
+    name: Domain Administration
+    mechanism: human
+    flavor: human-system-authorization
     lifecycle: preventative
     corpus_ref: null
-    implements: [iso-27701.s7-4-5-minimisation-sanitizer]
+    implements: [nist-sp-800-53.ac.access-control]
     provenance:
       kind: officer
       authored_by:
         user: tylerjewell@gmail.com
-        at: '2026-10-20T00:00:00Z'
-    summary: Once a project has data domains, a question that reads a type outside them, a domain the asker is not granted, or two domains with no approved join rule is refused.
-    proof_event: ControlEvaluationRecorded
-    boundary: WORKFLOW_STEP
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      Setting or removing a data domain, and revoking a join rule, is an administrator's decision, recorded
+      with a reason.
+    proof_event: HumanDecisionRecorded
+    boundary: STATE_TRANSITION
     applies_to: [deployer]
+    human_config:
+      flavor: human-system-authorization
+      subject_kind: change
+      mode: HITL
+      blocking: true
+      roles: [admin]
+      review_mode: SINGLE
+      required: 1
+      independence: []
+      accountable_owner: admin
+      sla_target: P3D
+      timeout_behaviour: RAISE_TIMEOUT
+      timeout_default: null
+      escalation_chain: [admin]
+      allowed_actions: [APPROVE, DENY]
+      rationale_required: true
+      minimum_review_seconds: 0
+      enforce_minimum: false
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:23Z'
 
-  - row_id: custom-cl0016
-    name: An answer to a compliance question says only what recorded facts say
-    mechanism: guardrail
+  - row_id: custom-cl0043
+    name: Person Runs the Question
+    mechanism: human
+    flavor: human-domain-decision
     lifecycle: preventative
     corpus_ref: null
-    implements: [iso-42001.a-7-4.sanitizer]
+    implements: [eu-ai-act.art14.4.d]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      A question drafted by a model is read and run by a person; the model never runs it. Running a draft
+      records who ran it.
+    proof_event: HumanDecisionRecorded
+    boundary: STATE_TRANSITION
+    applies_to: [deployer]
+    human_config:
+      flavor: human-domain-decision
+      subject_kind: change
+      mode: HITL
+      blocking: true
+      roles: [operator]
+      review_mode: SINGLE
+      required: 1
+      independence: []
+      accountable_owner: operator
+      sla_target: P1D
+      timeout_behaviour: RAISE_TIMEOUT
+      timeout_default: null
+      escalation_chain: [operator, admin]
+      allowed_actions: [APPROVE, DENY]
+      rationale_required: false
+      minimum_review_seconds: 0
+      enforce_minimum: false
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:23Z'
+
+  - row_id: custom-cl0044
+    name: Unknown Outcome Resolution
+    mechanism: human
+    flavor: human-domain-decision
+    lifecycle: corrective
+    corpus_ref: null
+    implements: [aicpa-soc2.pi1-3.processing-error-detection]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      When it is not known whether an action took effect, a reviewer who did not request the action finds out
+      and records whether it happened (APPROVE) or not (DENY). It is never retried by the service.
+    proof_event: HumanDecisionRecorded
+    boundary: STATE_TRANSITION
+    applies_to: [deployer]
+    human_config:
+      flavor: human-domain-decision
+      subject_kind: action
+      mode: HITL
+      blocking: true
+      roles: [reviewer]
+      review_mode: SINGLE
+      required: 1
+      independence: [proposer]
+      accountable_owner: reviewer
+      sla_target: P1D
+      timeout_behaviour: RAISE_TIMEOUT
+      timeout_default: null
+      escalation_chain: [reviewer, admin]
+      allowed_actions: [APPROVE, DENY, ESCALATE]
+      rationale_required: true
+      minimum_review_seconds: 0
+      enforce_minimum: false
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:23Z'
+
+  - row_id: custom-cl0045
+    name: Failed Step Hand-Off
+    mechanism: human
+    flavor: human-monitoring
+    lifecycle: corrective
+    corpus_ref: null
+    implements: [eu-ai-act.art26.4]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      A playbook step that still fails after its retries is handed to an operator, who acknowledges it; the
+      run does not wait.
+    proof_event: HumanDecisionRecorded
+    boundary: STATE_TRANSITION
+    applies_to: [deployer]
+    human_config:
+      flavor: human-monitoring
+      subject_kind: change
+      mode: HOTL
+      blocking: false
+      roles: [operator]
+      review_mode: SINGLE
+      required: 1
+      independence: []
+      accountable_owner: operator
+      sla_target: P1D
+      timeout_behaviour: RAISE_TIMEOUT
+      timeout_default: null
+      escalation_chain: [operator, admin]
+      allowed_actions: [APPROVE, ESCALATE]
+      rationale_required: true
+      minimum_review_seconds: 0
+      enforce_minimum: false
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:23Z'
+
+  - row_id: custom-cl0046
+    name: Case Resolution
+    mechanism: human
+    flavor: human-domain-decision
+    lifecycle: corrective
+    corpus_ref: null
+    implements: [aicpa-soc2.cc7-2.anomaly-monitoring]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: 'A case is resolved (APPROVE) or dismissed (DENY) by a reviewer, with a reason.'
+    proof_event: HumanDecisionRecorded
+    boundary: STATE_TRANSITION
+    applies_to: [deployer]
+    human_config:
+      flavor: human-domain-decision
+      subject_kind: change
+      mode: HITL
+      blocking: true
+      roles: [reviewer]
+      review_mode: SINGLE
+      required: 1
+      independence: []
+      accountable_owner: reviewer
+      sla_target: P7D
+      timeout_behaviour: RAISE_TIMEOUT
+      timeout_default: null
+      escalation_chain: [reviewer, admin]
+      allowed_actions: [APPROVE, DENY]
+      rationale_required: true
+      minimum_review_seconds: 0
+      enforce_minimum: false
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:23Z'
+
+  - row_id: custom-cl0047
+    name: Control Waiver
+    mechanism: human
+    flavor: human-system-authorization
+    lifecycle: corrective
+    corpus_ref: null
+    implements: [nist-sp-800-53.ra.risk-assessment]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: An administrator waives a control with a reason and an end date no more than 365 days away.
+    proof_event: HumanDecisionRecorded
+    boundary: STATE_TRANSITION
+    applies_to: [deployer]
+    human_config:
+      flavor: human-system-authorization
+      subject_kind: change
+      mode: HITL
+      blocking: true
+      roles: [admin]
+      review_mode: SINGLE
+      required: 1
+      independence: []
+      accountable_owner: admin
+      sla_target: P3D
+      timeout_behaviour: RAISE_TIMEOUT
+      timeout_default: null
+      escalation_chain: [admin]
+      allowed_actions: [APPROVE, DENY]
+      rationale_required: true
+      minimum_review_seconds: 0
+      enforce_minimum: false
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:23Z'
+
+  - row_id: custom-cl0048
+    name: Control Acceptance
+    mechanism: human
+    flavor: human-system-authorization
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [nist-ai-rmf.govern.1]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      Someone with authority accepts a control for the project, with a rationale; the acceptance goes stale
+      when the catalog changes.
+    proof_event: HumanDecisionRecorded
+    boundary: STATE_TRANSITION
+    applies_to: [deployer]
+    human_config:
+      flavor: human-system-authorization
+      subject_kind: change
+      mode: HITL
+      blocking: true
+      roles: [approver]
+      review_mode: SINGLE
+      required: 1
+      independence: []
+      accountable_owner: approver
+      sla_target: P3D
+      timeout_behaviour: RAISE_TIMEOUT
+      timeout_default: null
+      escalation_chain: [approver, admin]
+      allowed_actions: [APPROVE, DENY]
+      rationale_required: true
+      minimum_review_seconds: 0
+      enforce_minimum: false
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:23Z'
+
+  - row_id: custom-cl0049
+    name: Evidence Assertion
+    mechanism: human
+    flavor: human-system-authorization
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [eu-ai-act.art16.k]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      An administrator states which records count as evidence for a control and which documents back it; each
+      assertion is a new revision.
+    proof_event: HumanDecisionRecorded
+    boundary: STATE_TRANSITION
+    applies_to: [deployer]
+    human_config:
+      flavor: human-system-authorization
+      subject_kind: change
+      mode: HITL
+      blocking: true
+      roles: [admin]
+      review_mode: SINGLE
+      required: 1
+      independence: []
+      accountable_owner: admin
+      sla_target: P3D
+      timeout_behaviour: RAISE_TIMEOUT
+      timeout_default: null
+      escalation_chain: [admin]
+      allowed_actions: [APPROVE, DENY]
+      rationale_required: true
+      minimum_review_seconds: 0
+      enforce_minimum: false
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:23Z'
+
+  - row_id: custom-cl0008
+    name: Rubber-Stamp Detector
+    mechanism: eval
+    flavor: eval-on-decision-eval
+    lifecycle: detective
+    corpus_ref: null
+    implements: [eu-ai-act.art14.5.rubber-stamp-rate]
     provenance:
       kind: officer
       authored_by:
         user: tylerjewell@gmail.com
         at: '2026-10-20T00:00:00Z'
     summary: >-
-      A model chooses which fixed question was asked, the facts are computed from recorded data, and a second model words them.
-      Its words are checked against the facts, and an answer that adds a number, a control or a verdict they do not state is
-      replaced by the facts in plain form. The runtime's compliance-wording-evaluator records the same check on every answer.
-    proof_event: GuardrailDecisionRecorded
-    boundary: AFTER_LLM_CALL
+      Each decision on a control with a minimum review time is judged: one submitted sooner after it was
+      claimed is flagged below-minimum.
+    proof_event: EvaluationRecorded
+    boundary: ON_EVENT
     applies_to: [deployer]
+    eval_config:
+      trigger_event: HumanDecisionRecorded
+      check_intent: 'the person took at least the control''s minimum review time'
+      on_finding: flag the decision below-minimum
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:23Z'
+
+  - row_id: custom-cl0050
+    name: Label Audit
+    mechanism: eval
+    flavor: eval-on-decision-eval
+    lifecycle: detective
+    corpus_ref: null
+    implements: [aicpa-soc2.pi1-3.processing-error-detection]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      The runtime's label-allowed-evaluator judges every classifier interaction from the ledger: was the label
+      one of those offered?
+    proof_event: EvaluationRecorded
+    boundary: ON_EVENT
+    applies_to: [deployer]
+    eval_config:
+      trigger_event: classifier interaction completed
+      check_intent: the model answered with one of the labels it was offered
+      on_finding: record a failed verdict against the interaction
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:23Z'
+
+  - row_id: custom-cl0051
+    name: Wording Audit
+    mechanism: eval
+    flavor: eval-on-decision-eval
+    lifecycle: detective
+    corpus_ref: null
+    implements: [eu-ai-act.art14.4.c]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      The runtime's compliance-wording-evaluator judges every compliance answer from the ledger: does the
+      wording add a number, a control or a verdict the facts lack?
+    proof_event: EvaluationRecorded
+    boundary: ON_EVENT
+    applies_to: [deployer]
+    eval_config:
+      trigger_event: compliance summary interaction completed
+      check_intent: the wording states nothing the facts do not
+      on_finding: record a failed verdict against the interaction
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:23Z'
+
+  - row_id: custom-cl0052
+    name: Evidence Chain Integrity
+    mechanism: eval
+    flavor: eval-performance-monitor
+    lifecycle: detective
+    corpus_ref: null
+    implements: [eu-ai-act.art12.1, nist-sp-800-53.au.audit]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      The evidence ledger's hash chain is walked and every record altered after it was written, and every
+      missing or altered link, is reported. eval-performance-monitor stands in until Verify has an integrity
+      flavor.
+    proof_event: EvaluationRecorded
+    boundary: ON_EVENT
+    applies_to: [deployer]
+    eval_config:
+      trigger_event: integrity check requested
+      check_intent: every evidence record and chain link is as it was written
+      on_finding: report each problem and the chain head checked
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:24Z'
+
+  - row_id: custom-cl0053
+    name: Signed Contract Conformance
+    mechanism: eval
+    flavor: eval-on-release
+    lifecycle: detective
+    corpus_ref: null
+    implements: [aicpa-soc2.cc8-1.change-authorization]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      The bundle in force is checked (every part hashes as declared, every sign-off verifies) and each control
+      the service runs is reported as signed, changed or unsigned.
+    proof_event: EvaluationRecorded
+    boundary: ON_EVENT
+    applies_to: [deployer]
+    eval_config:
+      trigger_event: service started with a catalog digest
+      check_intent: the service runs every control exactly as signed
+      on_finding: report the controls that are changed or unsigned
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:24Z'
+
+  - row_id: custom-cl0054
+    name: Source Freshness Report
+    mechanism: eval
+    flavor: eval-performance-monitor
+    lifecycle: detective
+    corpus_ref: null
+    implements: [uk-mod-jsp936.s6.data-quality]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      Every answer says how current each source was, and flags one that is STALE or UNAVAILABLE, or a read
+      that ran out of time.
+    proof_event: EvaluationRecorded
+    boundary: ON_EVENT
+    applies_to: [deployer]
+    eval_config:
+      trigger_event: question answered
+      check_intent: every source the answer read was within its freshness policy
+      on_finding: flag the source in the answer
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:24Z'
+
+  - row_id: custom-cl0055
+    name: Backing Document Freshness
+    mechanism: eval
+    flavor: eval-on-change-revalidation
+    lifecycle: detective
+    corpus_ref: null
+    implements: [eu-ai-act.art16.k]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      For each control with an assertion, the documents it expects are checked: present, and no older than
+      allowed. An acceptance made at an earlier catalog is stale.
+    proof_event: EvaluationRecorded
+    boundary: ON_EVENT
+    applies_to: [deployer]
+    eval_config:
+      trigger_event: compliance report computed
+      check_intent: 'every expected document is attached and current, and every acceptance is at the current catalog'
+      on_finding: list the gap in the compliance report
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:24Z'
+
+  - row_id: custom-cl0056
+    name: Catalog Valid at Startup
+    mechanism: gate
+    flavor: gate-configuration
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [nist-ai-rmf.govern.1]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      The service checks its control catalog when a release first starts: every row has a mechanism, a flavor,
+      a proof event and the configuration its mechanism needs. A release whose catalog is not valid does not
+      start.
+    proof_event: GateEvaluated
+    boundary: AT_DEPLOYMENT
+    applies_to: [deployer]
+    gate_config:
+      document_kind: control-catalog
+      artifact_pattern: governance/controls.yaml
+      check_intent: the catalog parses and every row is complete for its mechanism
+      fails_when: 'any row is missing a field its mechanism needs, or a row id appears twice'
+      blocks: release
+      runs_at: [at-deployment]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:24Z'
+
+  - row_id: custom-cl0057
+    name: Draft Matches Signed Bundle
+    mechanism: gate
+    flavor: gate-test
+    lifecycle: preventative
+    corpus_ref: null
+    implements: [aicpa-soc2.cc8-1.change-authorization]
+    provenance:
+      kind: officer
+      authored_by:
+        user: tylerjewell@gmail.com
+        at: '2026-10-21T00:00:00Z'
+    summary: >-
+      Once a bundle is signed, every control in the catalog must be in the bundle in force exactly as written.
+      A test fails the build when they differ, and the release checks it again when it first starts.
+    proof_event: GateEvaluated
+    boundary: AT_DEPLOYMENT
+    applies_to: [deployer]
+    gate_config:
+      document_kind: signed-control-contract
+      artifact_pattern: governance/signed/
+      check_intent: 'every control in governance/controls.yaml is signed, unchanged, in the bundle in force'
+      fails_when: 'a control is changed or unsigned, or a part''s hash or a sign-off does not verify'
+      blocks: release
+      runs_at: [pre-release, at-deployment]
+    sign_off:
+      decision: approve
+      reviewer: tyler
+      at: '2026-10-21T12:02:24Z'
+updated_at: '2026-10-21T12:02:24Z'

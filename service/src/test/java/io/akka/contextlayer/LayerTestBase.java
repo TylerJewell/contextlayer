@@ -209,7 +209,29 @@ public abstract class LayerTestBase extends TestKitSupport {
     connect(org, "claims", pack("claims", claims, "Claim", "listClaims", "claimId"));
     connect(org, "wealth", pack("wealth", wealth, "Account", "listAccounts", "accountId"));
     awaitConnectorsVisible(org);
+    confirmEmailLinks(org, 2);
     return org;
+  }
+
+  /**
+   * Every identity link waits for a reviewer (custom-cl0004), however strong its match. Pat and Dan carry the same
+   * email in claims and wealth; a reviewer confirms those links, as a team would before asking across the two.
+   */
+  protected void confirmEmailLinks(String org, int expected) {
+    var review = "/orgs/" + org + "/identity/review";
+    var pending = new java.util.ArrayList<ContextLayerEndpoint.ClusterResponse>();
+    Awaitility.await().atMost(15, TimeUnit.SECONDS).untilAsserted(() -> {
+      pending.clear();
+      get(review, ContextLayerEndpoint.ClusterList.class).items().stream()
+          .filter(c -> c.rule().equals("email")).forEach(pending::add);
+      assertThat(pending).hasSize(expected);
+    });
+    for (var cluster : pending) {
+      post("rita", "/orgs/" + org + "/identity/confirm", clusterRef(cluster.rule(), cluster.key()),
+          ContextLayerEndpoint.ClusterResponse.class);
+    }
+    Awaitility.await().atMost(15, TimeUnit.SECONDS).untilAsserted(() ->
+        assertThat(get(review, ContextLayerEndpoint.ClusterList.class).items()).noneMatch(c -> c.rule().equals("email")));
   }
 
   protected void removeStoredAccounts(String org) {

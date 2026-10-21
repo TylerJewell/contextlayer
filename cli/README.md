@@ -9,7 +9,7 @@ export CONTEXT_URL=http://localhost:9162
 akka-context playbooks
 akka-context ask --words "open claims over a month for wealthy clients"
 akka-context ask --words "open claims" --run
-akka-context watch -f question.json   # the answer, then rows added and removed as data changes
+akka-context follow -f question.json  # the answer, then rows added and removed as data changes
 akka-context changes --types Claim    # records as they change
 akka-context domains set claims --types Claim --roles operator
 akka-context domains joins approve claims wealth --rationale "triage needs both"

@@ -29,7 +29,7 @@ class CaseFileTest {
         .apply(new CaseEvent.Resolved("priya", "attached the form", 3000L));
     assertThat(c.status()).isEqualTo(CaseFile.Status.RESOLVED);
     assertThat(c.timeline()).extracting(CaseFile.TimelineItem::actor)
-        .containsExactly("monitor m1", "playbook claims-watch", "priya");
+        .containsExactly("watcher m1", "playbook claims-watch", "priya");
   }
 
   @Test

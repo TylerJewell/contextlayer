@@ -127,7 +127,7 @@ def describe(question: dict[str, Any]) -> str:
 
 
 def _via_text(link: dict[str, Any]) -> str:
-    """The relationship a link follows, in the words the Ask form uses, or nothing for a link by identity."""
+    """The relationship a link follows, in the Ask form's words, or nothing for a link between the same records."""
     if not link.get("via"):
         return ""
     text = f" by {link['via']}"

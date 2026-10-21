@@ -1,6 +1,9 @@
 package io.akka.contextlayer.api;
 
 import akka.javasdk.annotations.Acl;
+import io.akka.contextlayer.application.Sampled;
+import io.akka.contextlayer.application.Verdicts;
+import io.akka.contextlayer.governance.Controls;
 import akka.javasdk.annotations.JWT;
 import akka.javasdk.annotations.http.Get;
 import akka.javasdk.annotations.http.HttpEndpoint;
@@ -48,7 +51,7 @@ public class NotificationEndpoint extends PrincipalEndpoint {
   private final Notifier notifier;
 
   public NotificationEndpoint(ComponentClient componentClient, EgressPolicy egress, Notifier notifier, Authz authz, ProjectResolver projects) {
-    super(authz, projects);
+    super(authz, projects, componentClient);
     this.componentClient = componentClient;
     this.egress = egress;
     this.notifier = notifier;
@@ -81,7 +84,11 @@ public class NotificationEndpoint extends PrincipalEndpoint {
     if (uri.getHost() == null || (!"http".equals(uri.getScheme()) && !"https".equals(uri.getScheme()))) {
       throw HttpException.badRequest("url must be an http or https address");
     }
-    if (!egress.allows(uri.getHost())) throw HttpException.badRequest("that host is not on the allowed list of hosts");
+    if (!egress.allows(uri.getHost())) {
+      verdicts().guardrail(project(), Controls.EGRESS, Verdicts.once(name), false, "host-not-allowed",
+          "notification route " + name, caller.subject());
+      throw HttpException.badRequest("that host is not on the allowed list of hosts");
+    }
     var state = call(() -> componentClient.forKeyValueEntity(NotificationRouteEntity.id(project(), name))
         .method(NotificationRouteEntity::set)
         .invoke(new NotificationRouteEntity.Set(uri.toString(), format, body.credentialRef(), caller.subject(),
@@ -118,7 +125,8 @@ public class NotificationEndpoint extends PrincipalEndpoint {
     var message = new Notifier.Message("route.test", project(), name, "Test message",
         "This checks that " + name + " receives messages from the context layer.", Map.of(), null,
         Instant.ofEpochMilli(now).toString());
-    var delivery = call(() -> Notifications.send(componentClient, notifier, project(), name, "test:" + now, message));
+    var subject = "test:" + now + ":" + java.util.UUID.randomUUID().toString().substring(0, 8);
+    var delivery = call(() -> Notifications.send(componentClient, notifier, project(), name, subject, message));
     return item(delivery);
   }
 
@@ -137,10 +145,19 @@ public class NotificationEndpoint extends PrincipalEndpoint {
     }
   }
 
-  private static RouteView view(String name, NotificationRouteEntity.State s) {
+  /**
+   * A web address can carry a secret in its path, so only where it goes is shown (control custom-cl0020, recorded once
+   * an hour for each route). Email addresses carry none.
+   */
+  private RouteView view(String name, NotificationRouteEntity.State s) {
     var uri = URI.create(s.url().isBlank() ? "http://unset" : s.url());
-    // A web address can carry a secret in its path, so only where it goes is shown. Email addresses carry none.
-    var destination = s.url().isBlank() ? "" : "email".equals(s.format()) ? s.url() : uri.getScheme() + "://" + uri.getAuthority() + "/…";
+    boolean web = !s.url().isBlank() && !"email".equals(s.format());
+    var destination = s.url().isBlank() ? "" : web ? uri.getScheme() + "://" + uri.getAuthority() + "/…" : s.url();
+    if (web && Sampled.firstThisHour(project() + "|" + Controls.ROUTE_SECRET_REDACTION + "|" + name)) {
+      var hidden = uri.getRawPath() != null && uri.getRawPath().length() > 1 || uri.getRawQuery() != null;
+      verdicts().sanitizer(project(), Controls.ROUTE_SECRET_REDACTION, Sampled.hourKey(name), hidden ? 1 : 0,
+          "notification route " + name, "system:routes");
+    }
     return new RouteView(name, s.enabled(), destination, s.format(), !s.credentialRef().isBlank());
   }
 

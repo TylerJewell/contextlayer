@@ -24,7 +24,7 @@ region. In both, a caller holds every permission once admitted.
 **Needed.** A Neo4j installation available to a project, with credentials supplied to the service
 through its environment (`NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`).
 
-**Why.** Questions are composed at run time and follow identity links across records and types.
+**Why.** Questions are composed at run time and follow links across records and types.
 Views are fixed when the service is built, join a fixed number of hops, and group only with
 `collect()`, so they cannot answer these questions.
 

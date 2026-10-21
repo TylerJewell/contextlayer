@@ -186,10 +186,14 @@ private Wire wire() {    return new Wire(httpClient);  }
     awaitStatus(org, a, key, "OUTCOME_UNKNOWN");
     assertThat(executor.calls.stream().filter(c -> c.contains(payload))).hasSize(1);
 
-    post("alice", "/orgs/" + org + "/assistants/" + a + "/actions/" + key + "/resolve",
+    // Finding out what happened is a reviewer's decision (custom-cl0044), and the requester cannot make it.
+    assertThat(postStatus("alice", "/orgs/" + org + "/assistants/" + a + "/actions/" + key + "/resolve",
+        new ContextLayerEndpoint.ResolveRequest(false, "target shows no change"))).isEqualTo(403);
+    post("bob", "/orgs/" + org + "/assistants/" + a + "/actions/" + key + "/resolve",
         new ContextLayerEndpoint.ResolveRequest(false, "target shows no change"),
         ContextLayerEndpoint.ActionResponse.class);
-    assertThat(actionStatus(org, a, key)).isEqualTo("FAILED");
+    Awaitility.await().atMost(10, TimeUnit.SECONDS).untilAsserted(() ->
+        assertThat(actionStatus(org, a, key)).isEqualTo("FAILED"));
     assertThat(executor.calls.stream().filter(c -> c.contains(payload))).hasSize(1);
   }
 
@@ -292,7 +296,7 @@ private Wire wire() {    return new Wire(httpClient);  }
         .noneMatch(c -> c.contains("before-" + beforeKey)).noneMatch(c -> c.contains("readonly-" + readOnlyKey));
 
     // Switching the pack off removes its actions again.
-    post("bob", base + "/deactivate", Map.of(), ContextLayerEndpoint.PackResponse.class);
+    post("bob", base + "/deactivate", Map.of("rationale", "the pilot is over"), ContextLayerEndpoint.PackResponse.class);
     var offKey = "k-" + id();
     requestAction(org, a, offKey, "claims.addNote", "off-" + offKey);
     awaitStatus(org, a, offKey, "DENIED");
@@ -319,7 +323,7 @@ private Wire wire() {    return new Wire(httpClient);  }
   }
 
   @Test
-  public void highConfidenceMatchesLinkAtOnceAndLowConfidenceOnesWaitForReview() {
+  public void everyMatchWaitsForAReviewerAndWhoeverLoadedTheRecordsCannotConfirmIt() {
     var org = "org-" + id();
     var path = "/orgs/" + org + "/records";
     var email = "pat-" + id() + "@example.com";
@@ -333,15 +337,18 @@ private Wire wire() {    return new Wire(httpClient);  }
 
     assertThat(second.matches()).extracting(ContextLayerEndpoint.IdentityMatch::rule, ContextLayerEndpoint.IdentityMatch::status)
         .containsExactlyInAnyOrder(
-            tuple("email", "CONFIRMED"),
+            tuple("email", "PENDING_REVIEW"),
             tuple("name-dob", "PENDING_REVIEW"));
 
     Awaitility.await().atMost(10, TimeUnit.SECONDS).untilAsserted(() ->
         assertThat(get("/orgs/" + org + "/identity/review", ContextLayerEndpoint.ClusterList.class).items())
-            .extracting(ContextLayerEndpoint.ClusterResponse::rule).containsExactly("name-dob"));
+            .extracting(ContextLayerEndpoint.ClusterResponse::rule).containsExactlyInAnyOrder("email", "name-dob"));
 
-    var pending = get("/orgs/" + org + "/identity/review", ContextLayerEndpoint.ClusterList.class).items().get(0);
+    var pending = get("/orgs/" + org + "/identity/review", ContextLayerEndpoint.ClusterList.class).items().stream()
+        .filter(c -> c.rule().equals("email")).findFirst().orElseThrow();
     assertThat(pending.members()).hasSize(2).allSatisfy(m -> assertThat(m).contains(" / "));
+    assertThat(postStatus("alice", "/orgs/" + org + "/identity/confirm", LayerTestBase.clusterRef(pending.rule(), pending.key())))
+        .as("alice loaded the records").isEqualTo(403);
     var confirmed = post("bob", "/orgs/" + org + "/identity/confirm",
         LayerTestBase.clusterRef(pending.rule(), pending.key()),
         ContextLayerEndpoint.ClusterResponse.class);
@@ -350,6 +357,6 @@ private Wire wire() {    return new Wire(httpClient);  }
 
     Awaitility.await().atMost(10, TimeUnit.SECONDS).untilAsserted(() ->
         assertThat(get("/orgs/" + org + "/identity/review", ContextLayerEndpoint.ClusterList.class).items())
-            .isEmpty());
+            .noneMatch(c -> c.rule().equals("email")));
   }
 }

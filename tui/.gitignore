@@ -8,3 +8,6 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Recorded demos (frames, narration and video) are built locally, not committed
+demo-engineering/

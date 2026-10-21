@@ -5,6 +5,7 @@ import akka.javasdk.client.ComponentClient;
 import akka.javasdk.http.HttpException;
 import io.akka.contextlayer.application.HumanEventEntity;
 import io.akka.contextlayer.application.HumanEventNotifier;
+import io.akka.contextlayer.application.Verdicts;
 import io.akka.contextlayer.auth.Caller;
 import io.akka.contextlayer.governance.ControlCatalog;
 import io.akka.contextlayer.governance.HumanEvents;
@@ -45,8 +46,21 @@ final class GateDecisions {
     client.forEventSourcedEntity(eventId).method(HumanEventEntity::raise).invoke(raised);
     var answer = client.forEventSourcedEntity(eventId).method(HumanEventEntity::decide)
         .invoke(new HumanEventEntity.Decide(Reviewer.of(caller, false), action, rationale, List.of(), 0, now));
-    if (answer.refusal() != null) throw toException(answer.refusal());
+    if (answer.refusal() != null) {
+      new Verdicts(client).humanRefusal(answer.event(), caller.subject(), "decide", answer.refusal(), false);
+      throw toException(answer.refusal());
+    }
     return eventId;
+  }
+
+  /**
+   * Refuses a decision a control's rule turns down before an event is raised for it, and records the refusal under
+   * the control.
+   */
+  static RuntimeException refuse(
+      ComponentClient client, Caller caller, String orgId, String controlId, String subject, String reason) {
+    new Verdicts(client).humanRefusal(orgId, controlId, subject, caller.subject(), reason);
+    return HttpException.badRequest(reason);
   }
 
   /** Marks an event decided as it is raised, so nobody is told to come and decide it. */

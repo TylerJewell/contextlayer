@@ -6,6 +6,7 @@ import io.akka.contextlayer.domain.PackDefinition;
 import io.akka.contextlayer.domain.RefreshStatus;
 import io.akka.contextlayer.domain.ScopedId;
 import io.akka.contextlayer.domain.StructuredQuestion;
+import io.akka.contextlayer.governance.Controls;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -70,9 +71,21 @@ public class QuestionService {
         System::currentTimeMillis, timeBudgetMillis);
   }
 
-  /** @throws IllegalArgumentException when the question is not acceptable */
+  /**
+   * Answers the question and records the verdicts of the controls it passes: it is read-only and within bounds
+   * (custom-cl0034), it follows only confirmed identity links (custom-cl0033), and every source it read was current
+   * (custom-cl0054).
+   *
+   * @throws IllegalArgumentException when the question is not acceptable
+   */
   public Answer ask(String orgId, StructuredQuestion question) {
     var problems = question.validate();
+    var verdicts = new Verdicts(componentClient);
+    var subject = String.join(", ", DomainAccess.typesOf(question));
+    var part = Verdicts.once("question");
+    verdicts.guardrail(orgId, Controls.READ_ONLY_QUESTIONS, part, problems.isEmpty(),
+        problems.isEmpty() ? "read-only, parameterised, within bounds" : String.join("; ", problems), subject,
+        "system:questions");
     if (!problems.isEmpty()) throw new IllegalArgumentException(String.join("; ", problems));
 
     long deadline = nowMillis.getAsLong() + timeBudgetMillis;
@@ -94,6 +107,19 @@ public class QuestionService {
     }
 
     var result = store.run(orgId, question);
+    boolean byIdentity = question.links() != null
+        && question.links().stream().anyMatch(l -> l.via() == null || l.via().isBlank());
+    if (byIdentity) {
+      verdicts.guardrail(orgId, Controls.CONFIRMED_IDENTITIES, part, true,
+          "followed confirmed links only; " + result.unconfirmedLeftOut() + " unconfirmed left out", subject,
+          "system:questions");
+    }
+    var behind = reports.stream()
+        .filter(r -> r.freshness() == Freshness.STALE || r.freshness() == Freshness.UNAVAILABLE)
+        .map(r -> (r.pack().isEmpty() ? "" : r.pack() + "/") + r.entityType() + " " + r.freshness())
+        .toList();
+    verdicts.eval(orgId, Controls.SOURCE_FRESHNESS, part, behind.isEmpty(),
+        behind.isEmpty() ? "every source within its freshness policy" : String.join("; ", behind), subject);
     return new Answer(result.rows(), result.unconfirmedLeftOut(), List.copyOf(reports));
   }
 

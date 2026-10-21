@@ -41,8 +41,14 @@ public class NotificationIntegrationTest extends LayerTestBase {
     return found[0];
   }
 
+  /**
+   * The deliveries about cases and routes. Connecting the sources also raises identity reviews, whose requests to the
+   * reviewers are deliveries too; they are not what these tests are about.
+   */
   private NotificationEndpoint.DeliveryList deliveries(String org) {
-    return get("/orgs/" + org + "/notifications", NotificationEndpoint.DeliveryList.class);
+    var all = get("/orgs/" + org + "/notifications", NotificationEndpoint.DeliveryList.class);
+    return new NotificationEndpoint.DeliveryList(all.items().stream()
+        .filter(d -> !d.subject().contains(":he:identity:")).toList());
   }
 
   @Test

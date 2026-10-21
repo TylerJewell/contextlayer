@@ -13,6 +13,7 @@ import akka.javasdk.client.ComponentClient;
 import akka.javasdk.http.HttpResponses;
 import akka.javasdk.timer.TimerScheduler;
 import io.akka.contextlayer.application.HumanEventTimedAction;
+import io.akka.contextlayer.application.UnknownOutcomes;
 import io.akka.contextlayer.application.AssistantEntity;
 import io.akka.contextlayer.application.AssistantListView;
 import io.akka.contextlayer.application.EntityStore;
@@ -82,7 +83,7 @@ public class OversightEndpoint extends PrincipalEndpoint {
   private final TimerScheduler timers;
 
   public OversightEndpoint(ComponentClient componentClient, EntityStore entityStore, TimerScheduler timers, Authz authz, ProjectResolver projects) {
-    super(authz, projects);
+    super(authz, projects, componentClient);
     this.entityStore = entityStore;
     this.timers = timers;
     this.componentClient = componentClient;
@@ -137,7 +138,7 @@ public class OversightEndpoint extends PrincipalEndpoint {
   public HttpResponse get(String id) {
     var caller = authorize(Permission.READ);
     var event = owned(project(), id);
-    if (event == null) return error(StatusCodes.NOT_FOUND, "event not found");
+    if (!ownProject(event != null, "human-event", caller)) return error(StatusCodes.NOT_FOUND, "event not found");
     return json(StatusCodes.OK, HumanEventJson.of(event, System.currentTimeMillis()));
   }
 
@@ -175,14 +176,14 @@ public class OversightEndpoint extends PrincipalEndpoint {
   @Post("/events/{id}/claim")
   public HttpResponse claim(String id, ActBody body) {
     var caller = authorize(Permission.REVIEW);
-    return act(caller, id, body == null ? null : body.reviewer(), (reviewer, now) -> componentClient
+    return act(caller, id, "claim", body == null ? null : body.reviewer(), (reviewer, now) -> componentClient
         .forEventSourcedEntity(id).method(HumanEventEntity::claim).invoke(new HumanEventEntity.Act(reviewer, now)));
   }
 
   @Post("/events/{id}/release")
   public HttpResponse release(String id, ActBody body) {
     var caller = authorize(Permission.REVIEW);
-    return act(caller, id, body == null ? null : body.reviewer(), (reviewer, now) -> componentClient
+    return act(caller, id, "release", body == null ? null : body.reviewer(), (reviewer, now) -> componentClient
         .forEventSourcedEntity(id).method(HumanEventEntity::release).invoke(new HumanEventEntity.Act(reviewer, now)));
   }
 
@@ -196,7 +197,7 @@ public class OversightEndpoint extends PrincipalEndpoint {
     } catch (DateTimeParseException e) {
       return error(StatusCodes.UNPROCESSABLE_ENTITY, "presentedAt must be an ISO-8601 instant");
     }
-    return act(caller, id, body.reviewer(), (reviewer, now) -> componentClient.forEventSourcedEntity(id)
+    return act(caller, id, "decide", body.reviewer(), (reviewer, now) -> componentClient.forEventSourcedEntity(id)
         .method(HumanEventEntity::decide)
         .invoke(new HumanEventEntity.Decide(reviewer, body.action(), body.rationale(), body.checks(), presentedAt, now)));
   }
@@ -205,7 +206,7 @@ public class OversightEndpoint extends PrincipalEndpoint {
   public HttpResponse escalate(String id, EscalateBody body) {
     var caller = authorize(Permission.REVIEW);
     if (body == null) return error(StatusCodes.UNPROCESSABLE_ENTITY, "a request body is required");
-    return act(caller, id, body.reviewer(), (reviewer, now) -> componentClient.forEventSourcedEntity(id)
+    return act(caller, id, "escalate", body.reviewer(), (reviewer, now) -> componentClient.forEventSourcedEntity(id)
         .method(HumanEventEntity::escalate).invoke(new HumanEventEntity.Escalate(reviewer, body.reason(), now)));
   }
 
@@ -213,7 +214,7 @@ public class OversightEndpoint extends PrincipalEndpoint {
   public HttpResponse sendBack(String id, SendBackBody body) {
     var caller = authorize(Permission.REVIEW);
     if (body == null) return error(StatusCodes.UNPROCESSABLE_ENTITY, "a request body is required");
-    return act(caller, id, body.reviewer(), (reviewer, now) -> componentClient.forEventSourcedEntity(id)
+    return act(caller, id, "send-back", body.reviewer(), (reviewer, now) -> componentClient.forEventSourcedEntity(id)
         .method(HumanEventEntity::sendBack).invoke(new HumanEventEntity.SendBack(reviewer, body.requested(), now)));
   }
 
@@ -221,7 +222,7 @@ public class OversightEndpoint extends PrincipalEndpoint {
   @Post("/events/{id}/resubmit")
   public HttpResponse resubmit(String id, ActBody body) {
     var caller = authorize(Permission.READ);
-    return act(caller, id, body == null ? null : body.reviewer(), (reviewer, now) -> componentClient
+    return act(caller, id, "resubmit", body == null ? null : body.reviewer(), (reviewer, now) -> componentClient
         .forEventSourcedEntity(id).method(HumanEventEntity::resubmit).invoke(new HumanEventEntity.Act(reviewer, now)));
   }
 
@@ -229,7 +230,7 @@ public class OversightEndpoint extends PrincipalEndpoint {
   public HttpResponse withdraw(String id, WithdrawBody body) {
     var caller = authorize(Permission.READ);
     var reason = body == null ? null : body.reason();
-    return act(caller, id, body == null ? null : body.reviewer(), (reviewer, now) -> componentClient
+    return act(caller, id, "withdraw", body == null ? null : body.reviewer(), (reviewer, now) -> componentClient
         .forEventSourcedEntity(id).method(HumanEventEntity::withdraw).invoke(new HumanEventEntity.Withdraw(reviewer, reason, now)));
   }
 
@@ -244,12 +245,14 @@ public class OversightEndpoint extends PrincipalEndpoint {
     } catch (DateTimeParseException e) {
       return error(StatusCodes.UNPROCESSABLE_ENTITY, "extra must be an ISO-8601 duration such as PT4H");
     }
-    var answer = act(caller, id, body.reviewer(), (reviewer, now) -> componentClient.forEventSourcedEntity(id)
+    var answer = act(caller, id, "extend", body.reviewer(), (reviewer, now) -> componentClient.forEventSourcedEntity(id)
         .method(HumanEventEntity::extend).invoke(new HumanEventEntity.Extend(reviewer, extra, body.reason(), now)));
     if (answer.status().intValue() == 200 && !(body.reviewer() != null && Boolean.TRUE.equals(body.reviewer().rehearsal()))) {
       var event = load(id);
       // Events nothing else is watching are timed out by a timer; move it. An approval's workflow looks again itself.
-      if (!"action".equals(event.subjectKind())) HumanEventTimedAction.schedule(timers, componentClient, id, event.dueAt());
+      if (!"action".equals(event.subjectKind()) || UnknownOutcomes.isOne(event)) {
+        HumanEventTimedAction.schedule(timers, componentClient, id, event.dueAt());
+      }
     }
     return answer;
   }
@@ -325,13 +328,25 @@ public class OversightEndpoint extends PrincipalEndpoint {
     HumanEventEntity.Answer run(Reviewer reviewer, long now);
   }
 
-  private HttpResponse act(io.akka.contextlayer.auth.Caller caller, String id, ReviewerBody reviewerBody, Command command) {
-    if (!ScopedId.belongsTo(id, project())) return error(StatusCodes.NOT_FOUND, "event not found");
+  private HttpResponse act(
+      io.akka.contextlayer.auth.Caller caller, String id, String verb, ReviewerBody reviewerBody, Command command) {
+    if (!ownProject(ScopedId.belongsTo(id, project()), "human-event", caller)) {
+      return error(StatusCodes.NOT_FOUND, "event not found");
+    }
     boolean rehearsal = reviewerBody != null && Boolean.TRUE.equals(reviewerBody.rehearsal());
     long now = System.currentTimeMillis();
     var answer = command.run(Reviewer.of(caller, rehearsal), now);
-    if (answer.refusal() != null) return refusal(answer.refusal(), answer.event(), now);
-    if (!answer.event().orgId().equals(project())) return error(StatusCodes.NOT_FOUND, "event not found");
+    if (answer.refusal() != null) {
+      var event = answer.event();
+      if (event != null && event.exists() && event.orgId().equals(project())
+          && answer.refusal().kind() != Refusal.Kind.NOT_FOUND) {
+        verdicts().humanRefusal(event, caller.subject(), verb, answer.refusal(), rehearsal);
+      }
+      return refusal(answer.refusal(), answer.event(), now);
+    }
+    if (!ownProject(answer.event().orgId().equals(project()), "human-event", caller)) {
+      return error(StatusCodes.NOT_FOUND, "event not found");
+    }
     return json(StatusCodes.OK, HumanEventJson.of(answer.event(), now));
   }
 

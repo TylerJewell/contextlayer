@@ -43,6 +43,11 @@ public record DomainConfig(Map<String, DataDomain> domains, List<JoinRule> joins
     return domains.values().stream().filter(d -> d.entityTypes().contains(entityType)).findFirst();
   }
 
+  /** Whether a problem {@link #check} reported is a missing join rule, rather than a domain the caller is not granted. */
+  public static boolean isJoinProblem(String problem) {
+    return problem.contains("needs an approved join rule");
+  }
+
   public boolean joinApproved(String a, String b) {
     var first = a.compareTo(b) <= 0 ? a : b;
     var second = a.compareTo(b) <= 0 ? b : a;

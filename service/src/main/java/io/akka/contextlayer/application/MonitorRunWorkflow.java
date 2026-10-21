@@ -7,6 +7,7 @@ import akka.javasdk.client.ComponentClient;
 import akka.javasdk.workflow.Workflow;
 import io.akka.contextlayer.domain.Monitor;
 import io.akka.contextlayer.domain.ScopedId;
+import io.akka.contextlayer.governance.Controls;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -94,9 +95,15 @@ public class MonitorRunWorkflow extends Workflow<MonitorRunWorkflow.Run> {
     // recorded as a run and no case is opened or closed, because an answer that was not read says nothing.
     var domains = DomainAccess.config(componentClient, run.orgId());
     if (domains.governed()) {
+      if (definition.owner().isBlank()) {
+        new Verdicts(componentClient).guardrail(run.orgId(), Controls.DOMAIN_ACCESS, commandContext().workflowId(),
+            false, "the watcher has no owner to read for", String.join(", ", definition.entityTypes()),
+            "watcher " + run.monitorId());
+        return stepEffects().updateState(run.withPhase("REFUSED")).thenEnd();
+      }
       var access = DomainAccess.check(componentClient, run.orgId(), domains, definition.owner(),
-          Set.copyOf(definition.ownerRoles()), "monitor " + run.monitorId() + " for " + definition.owner(), definition.entityTypes());
-      if (!access.allowed() || definition.owner().isBlank()) return stepEffects().updateState(run.withPhase("REFUSED")).thenEnd();
+          Set.copyOf(definition.ownerRoles()), "watcher " + run.monitorId() + " for " + definition.owner(), definition.entityTypes());
+      if (!access.allowed()) return stepEffects().updateState(run.withPhase("REFUSED")).thenEnd();
     }
     var answer = questions.ask(run.orgId(), definition.question());
 
@@ -134,6 +141,10 @@ public class MonitorRunWorkflow extends Workflow<MonitorRunWorkflow.Run> {
     var plan = componentClient.forEventSourcedEntity(monitorEntityId(run))
         .method(MonitorEntity::recordRun)
         .invoke(new MonitorEntity.RecordRun(run.at(), run.keys(), run.complete(), run.note()));
+    // Only a complete answer can say a row no longer matches, so only a complete run closes cases.
+    new Verdicts(componentClient).guardrail(run.orgId(), Controls.COMPLETE_RUNS_CLOSE_CASES, commandContext().workflowId(),
+        run.complete(), run.complete() ? "complete: cases that no longer match may close" : run.note() + "; no case closed",
+        "watcher " + run.monitorId(), "system:watcher");
     return stepEffects().updateState(run.withPhase("RECORDED").withPlan(plan)).thenTransitionTo(MonitorRunWorkflow::openCasesStep);
   }
 

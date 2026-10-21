@@ -80,7 +80,7 @@ public class StreamEndpoint extends PrincipalEndpoint {
   public StreamEndpoint(
       ComponentClient componentClient, TimerScheduler timers, SourceCaller sourceCaller, EntityStore store, Authz authz,
       ProjectResolver projects) {
-    super(authz, projects);
+    super(authz, projects, componentClient);
     this.componentClient = componentClient;
     this.sourceCaller = sourceCaller;
     this.store = store;
@@ -90,11 +90,14 @@ public class StreamEndpoint extends PrincipalEndpoint {
 
   @Post("/changes")
   public ChangeResult changes(ChangeBatch body) {
-    authorize(Permission.OPERATE);
+    var caller = authorize(Permission.OPERATE);
     required(body);
     if (body.changes() == null || body.changes().isEmpty() || body.changes().size() > MAX_BATCH) {
       throw HttpException.badRequest("send between 1 and " + MAX_BATCH + " changes");
     }
+    var types = body.changes().stream().filter(java.util.Objects::nonNull).map(c -> c.entityType())
+        .filter(t -> t != null && !t.isBlank()).collect(java.util.stream.Collectors.toCollection(java.util.TreeSet::new));
+    if (!types.isEmpty()) DomainGate.require(componentClient, project(), caller, types);
     int applied = 0, held = 0, none = 0;
     var problems = new ArrayList<String>();
     for (int i = 0; i < body.changes().size(); i++) {

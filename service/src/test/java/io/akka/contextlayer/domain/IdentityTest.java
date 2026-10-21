@@ -39,10 +39,20 @@ class IdentityTest {
   }
 
   @Test
-  void highConfidenceMatchesAcrossSourcesAreTrustedAutomatically() {
+  void evenAnExactEmailMatchWaitsForAReviewer() {
     var c = add(add(IdentityCluster.empty(), "email", 1.0, "crm", "1"), "email", 1.0, "claims", "9");
-    assertThat(c.status()).isEqualTo(IdentityCluster.Status.CONFIRMED);
-    assertThat(c.usable()).isTrue();
+    assertThat(c.status()).isEqualTo(IdentityCluster.Status.PENDING_REVIEW);
+    assertThat(c.usable()).isFalse();
+    assertThat(c.apply(new IdentityEvent.ReviewConfirmed("rita")).usable()).isTrue();
+  }
+
+  @Test
+  void thePeopleWhoLoadedTheRecordsAreKeptSoTheyCannotConfirmThem() {
+    var c = IdentityCluster.empty()
+        .apply(new IdentityEvent.MemberAdded("org", "email", "k", 1.0, "crm", "Client", "1", "olga"))
+        .apply(new IdentityEvent.MemberAdded("org", "email", "k", 1.0, "claims", "Claim", "9", ""))
+        .apply(new IdentityEvent.MemberAdded("org", "email", "k", 1.0, "wealth", "Account", "3", "olga"));
+    assertThat(c.contributors()).containsExactly("olga");
   }
 
   @Test
@@ -74,5 +84,21 @@ class IdentityTest {
         .apply(new IdentityEvent.ReviewConfirmed("alice"));
     var withThird = add(c, "name-dob", 0.7, "billing", "5");
     assertThat(withThird.status()).isEqualTo(IdentityCluster.Status.PENDING_REVIEW);
+  }
+
+  @Test
+  void aConnectorsOwnKeyLinksAnyKindOfRecordSuchAsOneSkuInTwoErps() {
+    var found = IdentityRules.declared(Map.of("sku", " AB-100 ", "email", "Pat@Example.com"));
+
+    assertThat(found).extracting(IdentityRules.Candidate::rule, IdentityRules.Candidate::key)
+        .containsExactlyInAnyOrder(org.assertj.core.groups.Tuple.tuple("sku", "ab-100"),
+            org.assertj.core.groups.Tuple.tuple("email", "pat@example.com"));
+  }
+
+  @Test
+  void theBuiltInRulesForAPersonDoNotTurnOtherFieldsIntoKeys() {
+    assertThat(IdentityRules.candidates(Map.of("sku", "AB-100", "status", "OPEN"))).isEmpty();
+    assertThat(IdentityRules.declared(Map.of("name", "Pat Lee", "dob", "1980-01-02")))
+        .extracting(IdentityRules.Candidate::rule).containsExactly("name-dob");
   }
 }

@@ -31,7 +31,7 @@ public class CaseNotifier extends Consumer {
     }
     var message = new Notifier.Message("case.opened", opened.orgId(), opened.routeTo(),
         "New case for " + opened.key(),
-        "Monitor " + opened.monitorId() + " found " + opened.key() + "; it is routed to " + opened.routeTo()
+        "Watcher " + opened.monitorId() + " found " + opened.key() + "; it is routed to " + opened.routeTo()
             + ". Open it in the console.",
         Map.of("caseId", opened.caseId(), "monitorId", opened.monitorId()), null,
         Instant.ofEpochMilli(opened.at()).toString());

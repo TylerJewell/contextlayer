@@ -35,9 +35,11 @@ public class HumanEventApplier extends Consumer {
         case HumanEventEvent.Decided e when e.state() == io.akka.contextlayer.governance.HumanState.DECIDED ->
             apply(current(id), e.outcomeAction(), e.decision().reviewer().subject(), e.decision().rationale());
         case HumanEventEvent.Withdrawn e -> {
-          // Only an action has a requester to withdraw; a closed identity question leaves the cluster as it is.
+          // Only an action approval has a requester to withdraw; a closed identity question leaves the cluster as it is.
           var held = current(id);
-          if ("action".equals(held.subjectKind())) apply(held, "DENY", e.reviewer().subject(), "withdrawn by the requester");
+          if ("action".equals(held.subjectKind()) && !UnknownOutcomes.isOne(held)) {
+            apply(held, "DENY", e.reviewer().subject(), "withdrawn by the requester");
+          }
         }
         default -> { }
       }
@@ -53,7 +55,9 @@ public class HumanEventApplier extends Consumer {
   }
 
   private void apply(HumanEvent event, String action, String by, String why) {
-    if ("action".equals(event.subjectKind())) {
+    if (UnknownOutcomes.isOne(event)) {
+      applyUnknownOutcome(event, action, by, why);
+    } else if ("action".equals(event.subjectKind())) {
       var workflow = componentClient.forWorkflow(
           ScopedId.of(event.orgId(), event.assistantId(), event.detail().get("actionKey")));
       if ("APPROVE".equals(action)) {
@@ -65,6 +69,9 @@ public class HumanEventApplier extends Consumer {
       applyIdentity(event, action, by);
     } else if ("system".equals(event.subjectKind()) && "assistant".equals(event.detail().get("scope"))) {
       applyHalt(event, action, by);
+    } else if ("failed-step".equals(event.detail().get("operation"))) {
+      // A hand-off holds nothing back, so its decision changes nothing; it says the operator has taken it on.
+      settle(event, "APPROVE".equals(action) ? "acknowledged by " + by : "escalated by " + by, null);
     }
   }
 
@@ -91,6 +98,20 @@ public class HumanEventApplier extends Consumer {
       return;
     }
     settle(event, "link " + ("APPROVE".equals(action) ? "confirmed" : "rejected"), null);
+  }
+
+  /** Records in the ledger what the reviewer found: APPROVE is that the action took effect, DENY that it did not. */
+  private void applyUnknownOutcome(HumanEvent event, String action, String by, String why) {
+    boolean happened = "APPROVE".equals(action);
+    try {
+      componentClient.forEventSourcedEntity(ScopedId.of(event.orgId(), event.assistantId(), event.detail().get("actionKey")))
+          .method(ActionLedgerEntity::resolveUnknown)
+          .invoke(new ActionLedgerEntity.ResolveUnknown(by, happened, why));
+    } catch (IllegalArgumentException e) {
+      settle(event, null, e.getMessage());
+      return;
+    }
+    settle(event, happened ? "recorded as having taken effect" : "recorded as not having taken effect", null);
   }
 
   /** A halt or restart takes effect only when it is approved; a denial leaves the assistant as it was. */

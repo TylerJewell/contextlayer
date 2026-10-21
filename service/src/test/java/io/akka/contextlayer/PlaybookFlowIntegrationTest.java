@@ -168,7 +168,7 @@ public class PlaybookFlowIntegrationTest extends LayerTestBase {
       assertThat(call.systemMessage()).contains("Allowed labels: BLOCKED, DEGRADED, MINOR");
       assertThat(call.reply()).contains("BLOCKED");
       assertThat(call.verdicts()).anySatisfy(v -> {
-        assertThat(v.controlId()).isEqualTo("custom-cl0002");
+        assertThat(v.controlId()).isEqualTo(Controls.LABEL_AUDIT);
         assertThat(v.passed()).isTrue();
       });
     });
@@ -312,7 +312,7 @@ public class PlaybookFlowIntegrationTest extends LayerTestBase {
       assertThat(labels).isNotEmpty().allSatisfy(e -> {
         assertThat(e.decision()).isEqualTo("PASS");
         assertThat(e.eventType()).isEqualTo("GuardrailDecisionRecorded");
-        assertThat(e.boundary()).isEqualTo("WORKFLOW_STEP");
+        assertThat(e.boundary()).isEqualTo("AFTER_LLM_RESPONSE");
       });
     });
   }

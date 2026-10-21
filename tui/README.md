@@ -11,7 +11,7 @@ your name and role, and a Governance tab shows whether the evidence says each co
     uv run contextlayer-tui --demo
 
 `--demo` runs on built-in sample data (no service needed) and follows the same rules the real service
-does: a risky action waits for approval, an unconfirmed identity link is left out of answers, a source
+does: a risky action waits for approval, an unconfirmed link is left out of answers, a source
 that fails gives stale data that says so.
 
 Against a running service:
@@ -21,7 +21,7 @@ Against a running service:
 You sign in with a bearer token from your identity provider (`--token`, or `$CONTEXTLAYER_TOKEN`). The
 service checks it; the console reads it only to show your name and roles in the banner. What you may do
 follows from the roles in the token: `viewer` looks, `operator` asks and builds, `reviewer` judges
-identity links and cases, `approver` authorizes, `admin` also waives controls.
+links and cases, `approver` authorizes, `admin` also waives controls.
 
 Against a service running on your own machine, where the runtime does not check signatures, leave the
 token out and say who you are:
@@ -35,12 +35,12 @@ That makes an unsigned token. A deployed service refuses it.
 | Key | Tab | What it is for |
 |---|---|---|
 | 1 | Sources | Each connected source, its mode, and how its last read went. `f` reads it now. |
-| 2 | Identity | Records that may be one person. `s` same person, `d` different people. |
-| 3 | Ask | Ask across sources. `ctrl+r` runs it, `F2` watches it as a monitor. The report beside the answer shows how fresh each source was. |
-| 4 | Cases | What monitors found, the evidence, and the timeline. `r` resolve, `x` dismiss, `n` note, `m` the model call behind it and the runtime's verdicts on it. |
+| 2 | Links | Records that may be the same person or thing, matched on a key their connectors declare. `s` same, `d` different. |
+| 3 | Ask | Ask across sources. `ctrl+r` runs it, `F2` watches it: it becomes a watcher, and new matches open cases. The report beside the answer shows how fresh each source was. |
+| 4 | Cases | What watchers found, the evidence, and the timeline. `r` resolve, `x` dismiss, `n` note, `m` the model call behind it and the runtime's verdicts on it. |
 | 5 | Decisions | Things that cannot happen until a person says yes or no: actions, releases, stages, connectors, halts. `a` opens one, and the next `a` decides it; `x` rejects, `e` escalates, `b` sends back, `r` releases. Deciding before the control's minimum review time asks first and is recorded as rushed. |
 | 6 | Playbooks | Stage, releases, the steps of the newest release, and what a shadow playbook would have done. `p` promote, `b` step back, `a` approve a release, `e` edit the steps, `n` new playbook. |
-| 7 | Monitors | Questions that run on a schedule. `n` run now, `e` pause or resume. |
+| 7 | Watchers | Questions that run on a schedule and open cases. `n` run now, `e` pause or resume. |
 | 8 | Governance | Each control, whether its evidence upholds it, and what proves it. `w` waive, `l` lift a waiver (admin). |
 | g | Glossary | Every term the console uses, in plain words, and why it matters. Needs no service. |
 
@@ -71,7 +71,7 @@ listed at the bottom. Saving adds a release; it runs only once the playbook's ow
     Return   Claim.claimId, Account.balance
 
 Nothing is sent as query text. The service takes the parts as data and refuses anything it does not
-understand, and it only ever joins records through confirmed identity.
+understand, and it only ever joins records through confirmed links.
 
 ## Against a real service with real-looking data
 

@@ -128,7 +128,7 @@ public class ControlClaimsIntegrationTest extends LayerTestBase {
     var noReason = send(org, "erin", "admin", claimsPath(org, "/assertion"), new GovernanceEndpoint.AssertRequest("HumanDecisionRecorded", List.of(), " "));
 
     assertThat(unknown.status().intValue()).isEqualTo(400);
-    assertThat(noReason.status().intValue()).isEqualTo(400);
+    assertThat(noReason.status().intValue()).as("the assertion is a decision, and it needs a rationale").isEqualTo(422);
   }
 
   @Test

@@ -80,6 +80,13 @@ public class RefreshIntegrationTest extends LayerTestBase {
     return result.rows().stream().map(r -> String.valueOf(r.get("Claim.claimId"))).sorted().toList();
   }
 
+  /** Reads the scripted sources, then a reviewer confirms the email links they share (custom-cl0004), then asks again. */
+  private List<String> answerOnceLinked(String org, int emailLinks) {
+    answer(org);
+    confirmEmailLinks(org, emailLinks);
+    return answer(org);
+  }
+
   private void awaitIdentityStatus(String org, String rule, String status) {
     Awaitility.await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
       try (var session = driver.session()) {
@@ -170,7 +177,7 @@ public class RefreshIntegrationTest extends LayerTestBase {
     assertThat(claimsRefresh.skippedWithoutId()).isEqualTo(2);
     assertThat(wealthRefresh.outcome()).isEqualTo("OK");
     // Records that share an odd email are still linked to each other, so the question joins them.
-    assertThat(answer(org)).containsExactly("CL-COLON", "CL-LONG", "CL-PIPE");
+    assertThat(answerOnceLinked(org, 3)).containsExactly("CL-COLON", "CL-LONG", "CL-PIPE");
   }
 
   @Test
@@ -204,7 +211,7 @@ public class RefreshIntegrationTest extends LayerTestBase {
     var org = connected();
     serve("claims", SourceCaller.Status.OK, List.of(claim("CL-1", "pat@example.com", null, null, 41)));
     serve("wealth", SourceCaller.Status.OK, List.of(account("W-1", "pat@example.com", null, null, 412000)));
-    assertThat(answer(org)).containsExactly("CL-1");
+    assertThat(answerOnceLinked(org, 1)).containsExactly("CL-1");
 
     serve("claims", SourceCaller.Status.OK, List.of(claim("CL-1", "pat.new@example.com", null, null, 41)));
 
@@ -218,7 +225,7 @@ public class RefreshIntegrationTest extends LayerTestBase {
         claim("CL-1", "pat@example.com", null, null, 41), claim("CL-2", "sam@example.com", null, null, 36)));
     serve("wealth", SourceCaller.Status.OK, List.of(
         account("W-1", "pat@example.com", null, null, 412000), account("W-2", "sam@example.com", null, null, 300000)));
-    assertThat(answer(org)).containsExactly("CL-1", "CL-2");
+    assertThat(answerOnceLinked(org, 2)).containsExactly("CL-1", "CL-2");
 
     serve("claims", SourceCaller.Status.OK, List.of(claim("CL-1", "pat@example.com", null, null, 41)));
 
@@ -232,7 +239,7 @@ public class RefreshIntegrationTest extends LayerTestBase {
         claim("CL-1", "pat@example.com", null, null, 41), claim("CL-2", "sam@example.com", null, null, 36)));
     serve("wealth", SourceCaller.Status.OK, List.of(
         account("W-1", "pat@example.com", null, null, 412000), account("W-2", "sam@example.com", null, null, 300000)));
-    assertThat(answer(org)).containsExactly("CL-1", "CL-2");
+    assertThat(answerOnceLinked(org, 2)).containsExactly("CL-1", "CL-2");
 
     // Only the first record came back, because the read stopped early.
     serve("claims", SourceCaller.Status.PARTIAL, List.of(claim("CL-1", "pat@example.com", null, null, 41)));
@@ -245,7 +252,7 @@ public class RefreshIntegrationTest extends LayerTestBase {
     var org = connected();
     serve("claims", SourceCaller.Status.OK, List.of(claim("CL-1", "pat@example.com", null, null, 41)));
     serve("wealth", SourceCaller.Status.OK, List.of(account("W-1", "pat@example.com", null, null, 412000)));
-    assertThat(answer(org)).containsExactly("CL-1");
+    assertThat(answerOnceLinked(org, 1)).containsExactly("CL-1");
 
     script.put("claims", SourceCaller.Result.failed("down"));
 
@@ -253,12 +260,12 @@ public class RefreshIntegrationTest extends LayerTestBase {
   }
 
   @Test
-  public void aMatchOnNameAndBirthDateIsNotAskedAboutWhenAnEmailMatchAlreadyLinksThem() {
+  public void aMatchOnNameAndBirthDateIsNotAskedAboutWhenAConfirmedEmailMatchAlreadyLinksThem() {
     var org = connected();
     // Both records carry the same email AND the same name and birth date.
     serve("claims", SourceCaller.Status.OK, List.of(claim("CL-1", "pat@example.com", "Pat Lee", "1980-01-02", 41)));
     serve("wealth", SourceCaller.Status.OK, List.of(account("W-1", "pat@example.com", "Pat Lee", "1980-01-02", 412000)));
-    assertThat(answer(org)).containsExactly("CL-1");
+    assertThat(answerOnceLinked(org, 1)).containsExactly("CL-1");
 
     // The weaker cluster really exists and is waiting, so an empty queue is not just a view that lags.
     awaitIdentityStatus(org, "name-dob", "PENDING_REVIEW");

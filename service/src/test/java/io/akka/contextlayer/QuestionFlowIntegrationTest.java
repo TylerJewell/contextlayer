@@ -186,6 +186,30 @@ private Wire wire() {    return new Wire(httpClient);  }
     return answer[0];
   }
 
+  private List<ContextLayerEndpoint.ClusterResponse> reviewQueue(String org) {
+    return wire().GET("/orgs/" + org + "/identity/review").addHeader("Authorization", Tokens.bearer("reader", org, "admin"))
+        .responseBodyAs(ContextLayerEndpoint.ClusterList.class).invoke().body().items();
+  }
+
+  /**
+   * Every identity link waits for a reviewer (custom-cl0004), however strong its match. Pat's and Dan's claims and
+   * accounts share an email; a reviewer confirms those two links, as a team would before asking across sources.
+   */
+  private void confirmEmailLinks(String org) {
+    var pending = new java.util.ArrayList<ContextLayerEndpoint.ClusterResponse>();
+    Awaitility.await().atMost(15, TimeUnit.SECONDS).untilAsserted(() -> {
+      pending.clear();
+      reviewQueue(org).stream().filter(c -> c.rule().equals("email")).forEach(pending::add);
+      assertThat(pending).hasSize(2);
+    });
+    for (var cluster : pending) {
+      post("rita", "/orgs/" + org + "/identity/confirm", LayerTestBase.clusterRef(cluster.rule(), cluster.key()),
+          ContextLayerEndpoint.ClusterResponse.class);
+    }
+    Awaitility.await().atMost(15, TimeUnit.SECONDS).untilAsserted(() ->
+        assertThat(ask(org).rows()).extracting(r -> r.get("Claim.claimId")).contains("1"));
+  }
+
   // ---- tests
 
   @Test
@@ -194,10 +218,12 @@ private Wire wire() {    return new Wire(httpClient);  }
     connect(org, "claims", pack("claims", claims, "Claim", "listClaims", "claimId", "CACHED", 15));
     connect(org, "wealth", pack("wealth", wealth, "Account", "listAccounts", "accountId", "ON_DEMAND", 0));
 
-    var first = askWhenConnected(org);
+    askWhenConnected(org);
+    confirmEmailLinks(org);
+    var first = ask(org);
 
-    // Pat's claim and account share an email, so they are linked automatically. Sam's share only a
-    // name and birth date, so that link waits for a person and the match is left out.
+    // Pat's claim and account share an email, and a reviewer confirmed that link. Sam's share only a name and birth
+    // date, and nobody has reviewed that link yet, so the match is left out.
     assertThat(first.rows()).hasSize(1);
     assertThat(first.rows().get(0)).containsEntry("Claim.claimId", "1").containsEntry("Account.balance", 412000);
     assertThat(first.unconfirmedLeftOut()).isEqualTo(1);
@@ -228,7 +254,9 @@ private Wire wire() {    return new Wire(httpClient);  }
     var org = newOrg();
     connect(org, "claims", pack("claims", claims, "Claim", "listClaims", "claimId", "CACHED", 15));
     connect(org, "wealth", pack("wealth", wealth, "Account", "listAccounts", "accountId", "ON_DEMAND", 0));
-    assertThat(askWhenConnected(org).rows()).hasSize(1);
+    askWhenConnected(org);
+    confirmEmailLinks(org);
+    assertThat(ask(org).rows()).hasSize(1);
 
     Awaitility.await().atMost(15, TimeUnit.SECONDS).untilAsserted(() -> {
       var queue = wire().GET("/orgs/" + org + "/identity/review").addHeader("Authorization", Tokens.bearer("reader", org, "admin"))
@@ -254,6 +282,7 @@ private Wire wire() {    return new Wire(httpClient);  }
     connect(org, "claims", pack("claims", claims, "Claim", "listClaims", "claimId", "CACHED", 15));
     connect(org, "wealth", pack("wealth", wealth, "Account", "listAccounts", "accountId", "ON_DEMAND", 0));
     askWhenConnected(org);
+    confirmEmailLinks(org);
 
     wealthDown = true;
     var answer = ask(org);
@@ -288,7 +317,9 @@ private Wire wire() {    return new Wire(httpClient);  }
     var other = newOrg();
     connect(org, "claims", pack("claims", claims, "Claim", "listClaims", "claimId", "CACHED", 15));
     connect(org, "wealth", pack("wealth", wealth, "Account", "listAccounts", "accountId", "ON_DEMAND", 0));
-    assertThat(askWhenConnected(org).rows()).hasSize(1);
+    askWhenConnected(org);
+    confirmEmailLinks(org);
+    assertThat(ask(org).rows()).hasSize(1);
 
     var answer = ask(other);
 
@@ -321,8 +352,9 @@ private Wire wire() {    return new Wire(httpClient);  }
     connect(org, "claims", pack("claims", claims, "Claim", "listClaims", "claimId", "CACHED", 15));
     connect(org, "wealth", pack("wealth", wealth, "Account", "listAccounts", "accountId", "ON_DEMAND", 0));
     askWhenConnected(org);
+    confirmEmailLinks(org);
 
-    // Pat's records match on name and birth date too, but their email already joins them; only Sam's match needs a person.
+    // Once the email links are confirmed, only Sam's name and birth date match still needs a person.
     Awaitility.await().atMost(20, TimeUnit.SECONDS).untilAsserted(() -> {
       var queue = wire().GET("/orgs/" + org + "/identity/review").addHeader("Authorization", Tokens.bearer("reader", org, "admin"))
           .responseBodyAs(ContextLayerEndpoint.ClusterList.class).invoke().body();

@@ -1,4 +1,4 @@
-"""Identity review: records the platform thinks may be one person, waiting for a person to say."""
+"""Links: records the platform thinks may be the same person or thing, waiting for a person to say."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from .base import Pane
 class IdentityPane(Pane):
     columns = ("Matched on", "Key", "Confidence", "Records")
     empty_text = "Nothing is waiting for review."
-    BINDINGS = [Binding("s", "decide(True)", "Same person"), Binding("d", "decide(False)", "Different people")]
+    BINDINGS = [Binding("s", "decide(True)", "Same"), Binding("d", "decide(False)", "Different")]
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -58,7 +58,7 @@ class IdentityPane(Pane):
             Text("The platform will not use this link until you decide. Answers that would depend on it are"
                  " left out and counted."),
             Text(),
-            Text.from_markup("[bold]s[/] same person     [bold]d[/] different people"),
+            Text.from_markup("[bold]s[/] the same     [bold]d[/] different"),
             Text.from_markup(f"[{DIM}]You can undo a link later; everything built on it is checked again.[/]"),
         ]
         return Group(*lines)
@@ -93,7 +93,7 @@ class IdentityPane(Pane):
             if why is not None:
                 self.run_worker(self._decide(c, same_person, why))
 
-        self.app.push_screen(PromptModal("Same person?" if same_person else "Different people?",
+        self.app.push_screen(PromptModal("The same?" if same_person else "Different?",
                                          "Why? This goes on the record with your name and role."), answered)
 
     async def _decide(self, c: dict[str, Any], same_person: bool, why: str) -> None:
@@ -103,5 +103,5 @@ class IdentityPane(Pane):
             self.fail(error)
             return
         self.opened.pop(f"{c['rule']}|{c['key']}", None)
-        self.app.notify("Linked as one person." if same_person else "Kept as different people.")
+        self.app.notify("Linked as the same." if same_person else "Kept apart.")
         await self.reload()

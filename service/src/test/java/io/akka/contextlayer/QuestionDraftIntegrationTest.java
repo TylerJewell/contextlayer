@@ -61,8 +61,8 @@ public class QuestionDraftIntegrationTest extends LayerTestBase {
         ContextLayerEndpoint.DraftResponse.class);
   }
 
-  private GovernanceEndpoint.EvidenceExport evidence(String org) {
-    return get("/orgs/" + org + "/governance/evidence?control=" + Controls.QUESTION_DRAFT, GovernanceEndpoint.EvidenceExport.class);
+  private GovernanceEndpoint.EvidenceExport evidence(String org, String control) {
+    return get("/orgs/" + org + "/governance/evidence?control=" + control, GovernanceEndpoint.EvidenceExport.class);
   }
 
   @Test
@@ -113,7 +113,7 @@ public class QuestionDraftIntegrationTest extends LayerTestBase {
     assertThat(drafted.question()).isNull();
     assertThat(drafted.problems()).anyMatch(p -> p.contains("severity"));
     Awaitility.await().atMost(15, TimeUnit.SECONDS).untilAsserted(() -> {
-      var rows = evidence(org).evidence();
+      var rows = evidence(org, Controls.DRAFT_SCHEMA_CHECK).evidence();
       assertThat(rows).hasSize(1);
       assertThat(rows.get(0).decision()).isEqualTo("BLOCK");
       assertThat(rows.get(0).reasonCode()).isEqualTo("invalid-draft");
@@ -148,8 +148,9 @@ public class QuestionDraftIntegrationTest extends LayerTestBase {
     assertThat(drafted.problems()).isEmpty();
     assertThat(drafted.clarification()).startsWith("Which claims");
     Awaitility.await().atMost(15, TimeUnit.SECONDS).untilAsserted(() ->
-        assertThat(evidence(org).evidence()).extracting(GovernanceEndpoint.EvidenceItem::reasonCode)
-            .containsExactly("needs-clarification"));
+        assertThat(evidence(org, Controls.SHAPE_ONLY_DRAFTING).evidence()).extracting(GovernanceEndpoint.EvidenceItem::reasonCode)
+            .containsExactly("shape-only"));
+    assertThat(evidence(org, Controls.DRAFT_SCHEMA_CHECK).evidence()).isEmpty();
   }
 
   @Test
@@ -160,12 +161,17 @@ public class QuestionDraftIntegrationTest extends LayerTestBase {
     draft(org, "stalled claims");
 
     Awaitility.await().atMost(15, TimeUnit.SECONDS).untilAsserted(() -> {
-      var rows = evidence(org).evidence();
+      var rows = evidence(org, Controls.SHAPE_ONLY_DRAFTING).evidence();
       assertThat(rows).hasSize(1);
       assertThat(rows.get(0).decision()).isEqualTo("PASS");
       assertThat(rows.get(0).eventType()).isEqualTo("GuardrailDecisionRecorded");
       assertThat(rows.get(0).boundary()).isEqualTo("BEFORE_LLM_CALL");
       assertThat(rows.get(0).toString()).doesNotContain("stalled claims");
+      var checked = evidence(org, Controls.DRAFT_SCHEMA_CHECK).evidence();
+      assertThat(checked).singleElement().satisfies(e -> {
+        assertThat(e.decision()).isEqualTo("PASS");
+        assertThat(e.boundary()).isEqualTo("AFTER_LLM_RESPONSE");
+      });
     });
   }
 
@@ -174,7 +180,7 @@ public class QuestionDraftIntegrationTest extends LayerTestBase {
     var org = ready();
     // Only the claims domain exists, and it is readable by administrators, who are asking.
     post("root", "/orgs/" + org + "/domains/claims",
-        new io.akka.contextlayer.api.DomainEndpoint.DomainRequest("", List.of("Claim"), List.of("admin"), List.of()),
+        new io.akka.contextlayer.api.DomainEndpoint.DomainRequest("", List.of("Claim"), List.of("admin"), List.of(), "admins read claims"),
         io.akka.contextlayer.api.DomainEndpoint.DomainView.class);
     modelAnswers(GOOD);
 

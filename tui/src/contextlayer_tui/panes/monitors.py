@@ -1,4 +1,4 @@
-"""Monitors: questions that run on a schedule and open cases."""
+"""Watchers: questions that run on a schedule and open cases."""
 
 from __future__ import annotations
 
@@ -22,8 +22,8 @@ def every(minutes: int) -> str:
 
 
 class MonitorsPane(Pane):
-    columns = ("", "Monitor", "State", "Every", "Handled by", "Runs", "Last run", "Result")
-    empty_text = "No monitors. Ask a question and press F2 to watch it."
+    columns = ("", "Watcher", "State", "Every", "Handled by", "Runs", "Last run", "Result")
+    empty_text = "No watchers. Ask a question and press F2 to watch it."
     BINDINGS = [Binding("n", "run_now", "Run now"), Binding("e", "toggle", "Pause / resume")]
 
     async def load(self) -> None:

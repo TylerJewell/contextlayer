@@ -60,11 +60,11 @@ public record CaseFile(
     return switch (event) {
       case CaseEvent.Opened e -> new CaseFile(e.orgId(), e.caseId(), e.monitorId(), e.monitorVersion(), e.key(),
           e.evidence(), e.sourceNotes(), e.routeTo(), e.assistantId(), Status.OPEN,
-          List.of(new TimelineItem(e.at(), "monitor " + e.monitorId(),
+          List.of(new TimelineItem(e.at(), "watcher " + e.monitorId(),
               "opened for " + e.key() + (e.routeTo().isBlank() ? "" : ", routed to " + e.routeTo()))),
           true);
       case CaseEvent.NoLongerMatching e -> with(Status.NO_LONGER_MATCHING,
-          new TimelineItem(e.at(), "monitor " + monitorId, "the row no longer matches"));
+          new TimelineItem(e.at(), "watcher " + monitorId, "the row no longer matches"));
       case CaseEvent.Resolved e -> with(Status.RESOLVED, new TimelineItem(e.at(), e.by(), "resolved: " + e.note()));
       case CaseEvent.Dismissed e -> with(Status.DISMISSED, new TimelineItem(e.at(), e.by(), "dismissed: " + e.note()));
       case CaseEvent.Annotated e -> with(status, new TimelineItem(e.at(), e.actor(), e.text()));

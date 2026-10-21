@@ -227,13 +227,17 @@ func TestADomainNeedsTypesAndSomeoneWhoMayReadIt(t *testing.T) {
 func TestSettingADomainSendsItsTypesAndReaders(t *testing.T) {
 	server, calls := serve(t, map[string]string{"POST /v1/context/domains/claims": `{}`})
 
-	out, _, err := execute(t, server, "domains", "set", "claims", "--types", "Claim,Note", "--roles", "operator", "--people", "carol")
+	if _, _, err := execute(t, server, "domains", "set", "claims", "--types", "Claim,Note", "--roles", "operator"); err == nil {
+		t.Fatal("a domain change with no rationale was accepted")
+	}
+	out, _, err := execute(t, server, "domains", "set", "claims", "--types", "Claim,Note", "--roles", "operator", "--people", "carol",
+		"--rationale", "claims handlers read claims")
 
 	if err != nil || !strings.Contains(out, "Data domain claims now holds Claim, Note") {
 		t.Fatalf("out=%q err=%v", out, err)
 	}
 	body := (*calls)[0].body
-	if types, _ := body["entityTypes"].([]any); len(types) != 2 {
+	if types, _ := body["entityTypes"].([]any); len(types) != 2 || body["rationale"] != "claims handlers read claims" {
 		t.Fatalf("body: %v", body)
 	}
 }

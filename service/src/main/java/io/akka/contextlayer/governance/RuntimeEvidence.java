@@ -33,10 +33,17 @@ public final class RuntimeEvidence {
       String project, ControlCatalog catalog, Map<String, ControlClaims> claims, List<Item> records, long chainCount,
       String chainHead, Map<String, String> documentAsOf) {}
 
+  /** The activity class of each mechanism's proof event. */
   private static final Map<String, String> KIND_CLASS = Map.of(
       "HumanDecisionRecorded", "rte:HumanReview",
       "GuardrailDecisionRecorded", "rte:GuardrailIntervention",
-      "ControlEvaluationRecorded", "rte:ControlDecision");
+      "SanitizerApplied", "rte:Sanitization",
+      "EvaluationRecorded", "rte:ControlDecision",
+      "GateEvaluated", "rte:ControlDecision");
+
+  /** Guardrails that decide who may reach what are access decisions, the rest guardrail interventions. */
+  private static final Set<String> ACCESS_CONTROLS = Set.of(Controls.DOMAIN_ACCESS, Controls.APPROVED_JOINS,
+      Controls.CONFIRMED_IDENTITIES, Controls.PROJECT_ISOLATION, Controls.CALLER_AUTHORIZATION);
 
   public static String turtle(Input in) {
     var out = new StringBuilder(PREFIXES.replace("{project}", id(in.project())));
@@ -149,18 +156,15 @@ public final class RuntimeEvidence {
   }
 
   static String activityClass(Evidence e) {
-    return switch (e.controlId()) {
-      case Controls.HALT -> "rte:SystemHalt";
-      case Controls.MASK_PERSONAL_DATA -> "rte:Sanitization";
-      case Controls.DOMAIN_ACCESS -> "rte:AccessDecision";
-      default -> KIND_CLASS.getOrDefault(e.eventType(), "rte:RuntimeActivity");
-    };
+    if (e.controlId().equals(Controls.HALT)) return "rte:SystemHalt";
+    if (ACCESS_CONTROLS.contains(e.controlId())) return "rte:AccessDecision";
+    return KIND_CLASS.getOrDefault(e.eventType(), "rte:RuntimeActivity");
   }
 
   static String outcome(Evidence e) {
     var decision = e.decision() == null ? "" : e.decision();
     if (e.controlId().equals(Controls.HALT)) return decision.equals("APPROVE") ? "Halted" : null;
-    if (e.controlId().equals(Controls.MASK_PERSONAL_DATA)) {
+    if (e.eventType().equals("SanitizerApplied")) {
       return Set.of("MASKED", "REDACTED").contains(e.consequence()) ? "Transformed" : "Permit";
     }
     if (e.eventType().equals("HumanDecisionRecorded")) {
@@ -182,7 +186,8 @@ public final class RuntimeEvidence {
     if (e.eventType().equals("HumanDecisionRecorded")) return null;
     return switch (e.boundary()) {
       case "BEFORE_LLM_CALL" -> "BeforeModelCall";
-      case "WORKFLOW_STEP" -> e.eventType().equals("GuardrailDecisionRecorded") ? "AfterModelResponse" : null;
+      case "AFTER_LLM_RESPONSE" -> "AfterModelResponse";
+      case "BEFORE_TOOL_CALL" -> "BeforeToolCall";
       default -> null;
     };
   }

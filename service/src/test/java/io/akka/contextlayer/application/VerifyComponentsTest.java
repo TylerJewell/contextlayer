@@ -55,6 +55,7 @@ public class VerifyComponentsTest {
     assertThat(shapeDecision(record)).isInstanceOf(Decision.Deny.class);
   }
 
+  /** Session "s-1" names no project, so the evaluators copy nothing into a project's evidence and need no client. */
   private static InteractionRecord interaction(String agent, String systemMessage, String reply) {
     return new InteractionRecord("i-1", "s-1", agent, Optional.empty(),
         new InteractionMetadata(null, java.util.Map.of(), Instant.EPOCH, Instant.EPOCH, null),
@@ -66,7 +67,7 @@ public class VerifyComponentsTest {
   private static akka.javasdk.evaluation.Evaluation labelVerdict(String reply) {
     var message = ClassifierAgent.systemMessage(new ClassifierAgent.Request("Label the claim.", "text", List.of("MINOR", "MAJOR")));
     var ledger = TestLedgerClient.create().seed(interaction("classifier-agent", message, reply));
-    var result = EvaluatorTestKit.of(() -> new LabelAllowedEvaluator(ledger))
+    var result = EvaluatorTestKit.of(() -> new LabelAllowedEvaluator(ledger, null))
         .evaluate(new Subject.Interaction("i-1", "classifier-agent", Optional.empty()));
     assertThat(result.isComplete()).isTrue();
     return result.getEvaluation();
@@ -94,7 +95,7 @@ public class VerifyComponentsTest {
         - Use only what the facts say.
         """;
     var ledger = TestLedgerClient.create().seed(interaction("compliance-summary-agent", message, reply));
-    var result = EvaluatorTestKit.of(() -> new ComplianceWordingEvaluator(ledger))
+    var result = EvaluatorTestKit.of(() -> new ComplianceWordingEvaluator(ledger, null))
         .evaluate(new Subject.Interaction("i-1", "compliance-summary-agent", Optional.empty()));
     assertThat(result.isComplete()).isTrue();
     return result.getEvaluation();

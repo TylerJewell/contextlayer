@@ -38,23 +38,23 @@ public record Monitor(
   }
 
   public Optional<String> validateCreate(MonitorDefinition definition, String by) {
-    if (exists) return Optional.of("monitor already exists");
+    if (exists) return Optional.of("watcher already exists");
     return validateDefinition(definition, by);
   }
 
   public Optional<String> validateUpdate(MonitorDefinition definition, String by) {
-    if (!exists) return Optional.of("monitor not found");
+    if (!exists) return Optional.of("watcher not found");
     return validateDefinition(definition, by);
   }
 
   public Optional<String> validateChange(String by) {
-    if (!exists) return Optional.of("monitor not found");
-    if (by == null || by.isBlank()) return Optional.of("who is changing the monitor is required");
+    if (!exists) return Optional.of("watcher not found");
+    if (by == null || by.isBlank()) return Optional.of("who is changing the watcher is required");
     return Optional.empty();
   }
 
   private static Optional<String> validateDefinition(MonitorDefinition definition, String by) {
-    if (by == null || by.isBlank()) return Optional.of("who is changing the monitor is required");
+    if (by == null || by.isBlank()) return Optional.of("who is changing the watcher is required");
     if (definition == null) return Optional.of("a definition is required");
     var errors = definition.validate();
     return errors.isEmpty() ? Optional.empty() : Optional.of(String.join("; ", errors));

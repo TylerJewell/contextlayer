@@ -49,6 +49,9 @@
             <resource>
                 <directory>governance</directory>
                 <targetPath>governance</targetPath>
+                <excludes>
+                    <exclude>pack/generate.py</exclude>
+                </excludes>
             </resource>
         </resources>
         <plugins>

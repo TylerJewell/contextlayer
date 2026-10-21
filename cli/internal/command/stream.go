@@ -40,10 +40,11 @@ func (e *env) changes() *cobra.Command {
 func (e *env) watch() *cobra.Command {
 	var words, file string
 	command := &cobra.Command{
-		Use:   "watch",
-		Short: "Keep a question open and see what changes in its answer",
+		Use:     "follow",
+		Aliases: []string{"watch"},
+		Short:   "Follow a question and see what changes in its answer",
 		Long: "Shows the answer now, then each row added to it and removed from it as the data it reads changes.\n" +
-			"A monitor is the same thing with a case as its output. Stops when interrupted.",
+			"A watcher is the same thing with a case as its output. Stops when interrupted.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if (words == "") == (file == "") {

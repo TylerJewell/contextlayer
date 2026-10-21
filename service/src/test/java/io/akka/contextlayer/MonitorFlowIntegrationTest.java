@@ -61,8 +61,8 @@ public class MonitorFlowIntegrationTest extends LayerTestBase {
     assertThat(detail.evidence()).containsEntry("Claim.claimId", "1").containsEntry("Account.balance", 412000);
     assertThat(detail.sourceNotes()).anyMatch(n -> n.startsWith("claims/Claim"));
     // The monitor opened it; the only other entry a new case gets is the note of whether its route was told.
-    assertThat(detail.timeline().get(0).actor()).isEqualTo("monitor m1");
-    assertThat(detail.timeline()).extracting(CaseEndpoint.TimelineEntry::actor).containsOnly("monitor m1", "notifications");
+    assertThat(detail.timeline().get(0).actor()).isEqualTo("watcher m1");
+    assertThat(detail.timeline()).extracting(CaseEndpoint.TimelineEntry::actor).containsOnly("watcher m1", "notifications");
     assertThat(monitor(org).openRowKeys()).containsExactly("1");
   }
 
@@ -131,7 +131,9 @@ public class MonitorFlowIntegrationTest extends LayerTestBase {
   public void aSourceThatIsDownOnTheFirstRunOpensNothingAndSaysWhy() {
     var org = newOrg();
     wealth.setDown(true);
-    connectBoth(org);
+    connect(org, "claims", pack("claims", claims, "Claim", "listClaims", "claimId"));
+    connect(org, "wealth", pack("wealth", wealth, "Account", "listAccounts", "accountId"));
+    awaitConnectorsVisible(org);
     post("alice", "/orgs/" + org + "/monitors/m1", monitorRequest(""), MonitorEndpoint.MonitorResponse.class);
 
     awaitRunCount(org, 1);
@@ -139,6 +141,9 @@ public class MonitorFlowIntegrationTest extends LayerTestBase {
     assertThat(cases(org).items()).isEmpty();
 
     wealth.setDown(false);
+    runNow(org);
+    // The accounts are read now, so their email links exist only now, and a reviewer confirms them.
+    confirmEmailLinks(org, 2);
     runNow(org);
     awaitCases(org, 1);
   }

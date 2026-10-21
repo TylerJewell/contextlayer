@@ -36,6 +36,7 @@ class AskPane(Vertical):
         super().__init__(**kwargs)
         self.question: dict[str, Any] | None = None
         self.answer: dict[str, Any] | None = None
+        self.draft_id: str | None = None
 
     def compose(self) -> ComposeResult:
         with Horizontal(classes="ask-top"):
@@ -97,6 +98,8 @@ class AskPane(Vertical):
             problem.update(f"[{BAD}]Could not draft a question: {reasons}[/]")
             return
         fields = to_fields(drafted["question"])
+        # Running what was drafted records that a person ran it; the draft's id goes back with the question.
+        self.draft_id = drafted["question"].get("draftId")
         for field_id, key in (("#ask-show", "show"), ("#ask-where", "where"), ("#ask-link", "link"),
                               ("#ask-return", "ret"), ("#ask-limit", "limit")):
             self.query_one(field_id, Input).value = fields[key]
@@ -124,6 +127,9 @@ class AskPane(Vertical):
         except ParseError as error:
             problem.update(f"[{BAD}]{error}[/]")
             return
+        if self.draft_id:
+            question["draftId"] = self.draft_id
+            self.draft_id = None
         problem.update("")
         self.query_one("#summary", Static).update(f"[{DIM}]Asking…[/]")
         try:
@@ -149,7 +155,7 @@ class AskPane(Vertical):
         summary = [f"[bold]{rows} {'row' if rows == 1 else 'rows'}[/]  [{DIM}]{describe(question)}[/]"]
         if left_out:
             summary.append(f"[{WARN}]▲ {left_out} more would match through links still waiting for review"
-                           f" (Identity tab); they are left out.[/]")
+                           f" (Links tab); they are left out.[/]")
         if any(s["freshness"] in ("STALE", "UNAVAILABLE") for s in answer["sources"]):
             summary.append(f"[{WARN}]▲ Part of this answer used older data or could not be read. See the report.[/]")
         self.query_one("#summary", Static).update("\n".join(summary))

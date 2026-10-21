@@ -8,7 +8,6 @@ import io.akka.contextlayer.domain.RecordFlattener;
 import io.akka.contextlayer.domain.RefreshStatus;
 import io.akka.contextlayer.domain.ScopedId;
 import io.akka.contextlayer.governance.Controls;
-import io.akka.contextlayer.governance.EvaluationMode;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -78,19 +77,51 @@ public class EntityRefresher {
     return applied;
   }
 
-  /** The egress allow list is a gate on every source call: a refusal and a call let through are both evidence. */
-  private void recordEgress(String orgId, String packName, String entityType, SourceCaller.Result result, long at) {
-    boolean refused = result.refusedByEgress();
-    new EvidenceRecorder(componentClient).record(new EvidenceRecorder.Fact(orgId, Controls.EGRESS,
-        packName + "~" + entityType + "~" + at, EvaluationMode.ENFORCING, refused ? "BLOCK" : "PASS",
-        refused ? "BLOCKED" : "CONTINUED", refused ? "host-not-allowed" : "host-allowed", packName + "/" + entityType,
-        "system:egress", "system", "", false, "", at));
+  /**
+   * Every source call passes three guardrails before it is sent: the connector's declared bounds, a credential by
+   * reference, and the egress allow list. The one that refused is recorded as blocking, and the ones it was checked
+   * after as passing; a call that was sent passed all three. A guardrail that never got to look records nothing.
+   */
+  private void recordCallGuards(String orgId, String packName, String entityType, SourceCaller.Result result, long at) {
+    var verdicts = new Verdicts(componentClient);
+    var subject = packName + "/" + entityType;
+    var part = packName + "~" + entityType + "~" + at;
+    var refusedBy = result.refusedBy();
+    if (refusedBy.isPresent() && refusedBy.get() == SourceCaller.Guard.BOUNDS) {
+      verdicts.guardrail(orgId, Controls.BOUNDED_SOURCE_READS, part, false, result.warnings().get(0), subject,
+          "system:source-caller");
+      return;
+    }
+    if (refusedBy.isPresent() && refusedBy.get() == SourceCaller.Guard.CREDENTIAL) {
+      verdicts.guardrail(orgId, Controls.CREDENTIALS_BY_REFERENCE, part, false, "credential-not-resolved", subject,
+          "system:source-caller");
+      return;
+    }
+    verdicts.guardrail(orgId, Controls.CREDENTIALS_BY_REFERENCE, part, true, "credential-resolved", subject,
+        "system:source-caller");
+    if (refusedBy.isPresent()) {
+      verdicts.guardrail(orgId, Controls.EGRESS, part, false, "host-not-allowed", subject, "system:egress");
+      return;
+    }
+    verdicts.guardrail(orgId, Controls.EGRESS, part, true, "host-allowed", subject, "system:egress");
+    var capped = result.status() == SourceCaller.Status.PARTIAL;
+    verdicts.guardrail(orgId, Controls.BOUNDED_SOURCE_READS, part, true,
+        capped ? "stopped at a limit: " + String.join("; ", result.warnings()) : "within-limits", subject,
+        "system:source-caller");
+  }
+
+  /** Data comes in only through an active connector: a read of one that is not is refused. */
+  private void recordIntake(String orgId, String packName, String entityType, boolean active, long at) {
+    new Verdicts(componentClient).guardrail(orgId, Controls.GOVERNED_INTAKE, packName + "~" + entityType + "~" + at,
+        active, active ? "connector-active" : "connector-not-active", packName + "/" + entityType,
+        "system:refresher");
   }
 
   private RefreshStatus refresh(
       String orgId, String packName, ConnectorPack pack, String entityType, Map<String, String> filters) {
     long now = nowMillis.getAsLong();
     if (!pack.exists() || pack.mode() == ConnectorPack.Mode.INACTIVE || pack.active().isEmpty()) {
+      recordIntake(orgId, packName, entityType, false, now);
       return failed(orgId, packName, entityType, now, "", "the connector " + packName + " is not active");
     }
     var version = pack.active().get();
@@ -106,8 +137,9 @@ public class EntityRefresher {
       return failed(orgId, packName, entityType, now, version.hash(),
           entityType + " is fed by what its source pushes and has no operation to read");
     }
+    recordIntake(orgId, packName, entityType, true, now);
     var result = sourceCaller.fetchEntities(orgId, definition, entity, filters);
-    recordEgress(orgId, packName, entityType, result, now);
+    recordCallGuards(orgId, packName, entityType, result, now);
     if (result.status() == SourceCaller.Status.FAILED) {
       return RefreshStatus.of(orgId, packName, entityType, RefreshStatus.Outcome.FAILED, now, 0, 0,
           version.hash(), result.warnings());
@@ -167,7 +199,7 @@ public class EntityRefresher {
     for (var record : records) {
       var recordId = RecordFlattener.idOf(record, entity.idField());
       if (recordId == null) continue;
-      for (var candidate : IdentityRules.candidates(identityAttributes(entity, record))) {
+      for (var candidate : IdentityRules.declared(identityAttributes(entity, record))) {
         var cluster = componentClient.forEventSourcedEntity(ScopedId.of(orgId, candidate.rule(), ScopedId.safe(candidate.key())))
             .method(IdentityEntity::addMember)
             .invoke(new IdentityEntity.AddMember(orgId, candidate.rule(), candidate.key(), candidate.confidence(),

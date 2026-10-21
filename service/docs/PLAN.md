@@ -7,7 +7,7 @@ Records the choices the Akka constitution requires to be justified.
 **What:** `org.neo4j.driver:neo4j-java-driver`, talking to a Neo4j 5 server.
 
 **Why not Akka primitives alone:** the entity store must answer questions that join entities of
-different types through confirmed identity links (REQUIREMENTS QRY-01, ENT-02). Akka Views
+different types through confirmed links (REQUIREMENTS QRY-01, ENT-02). Akka Views
 project a single entity type per table and cannot traverse relationships between entity
 instances. Modelling the same traversals in views would mean a hand-built join index per
 question shape.
@@ -47,7 +47,7 @@ related-party questions cannot be asked; grouped queries only collect rows, so p
 totals cannot be asked. Those are the questions the product exists for.
 
 What this does and does not mean for the platform:
-- The graph is derived. The decisions (identity clusters, reviews, approvals, evidence) are
+- The graph is derived. The decisions (links, reviews, approvals, evidence) are
   event-sourced and are the durable record; sources stay the system of record for the data.
   Losing the graph means rebuilding it, not losing information. What the platform has to provide is
   availability and a rebuild path, not a second source of truth.

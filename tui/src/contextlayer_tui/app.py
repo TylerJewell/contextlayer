@@ -25,12 +25,12 @@ from .panes.sources import SourcesPane
 
 TABS: list[tuple[str, str, type]] = [
     ("sources", "Sources", SourcesPane),
-    ("identity", "Identity", IdentityPane),
+    ("identity", "Links", IdentityPane),
     ("ask", "Ask", AskPane),
     ("cases", "Cases", CasesPane),
     ("decisions", "Decisions", DecisionsPane),
     ("playbooks", "Playbooks", PlaybooksPane),
-    ("monitors", "Monitors", MonitorsPane),
+    ("monitors", "Watchers", MonitorsPane),
     ("governance", "Governance", GovernancePane),
     ("domains", "Domains", DomainsPane),
     ("live", "Live", LivePane),
@@ -41,17 +41,18 @@ TABS: list[tuple[str, str, type]] = [
 DEFINITIONS = {
     "sources": "A source is a system of record the context layer reads, such as claims or the CRM, through a "
                "connector that says how to read it.",
-    "identity": "An identity link says records from different sources are the same person; a reviewer confirms it "
-                "before any question may join them.",
+    "identity": "A link says records from different sources are the same person or thing, matched on a key their "
+                "connectors declare such as an email or a SKU; a reviewer confirms it before any question may join them.",
     "ask": "An ask is a question you put to the records of every connected source at once, in words or as conditions; "
            "it never changes anything, and its answer says how up to date each source was.",
-    "cases": "A case is something a monitor found for a person to look into; nothing waits on it until someone "
+    "cases": "A case is something a watcher found for a person to look into; nothing waits on it until someone "
              "resolves or dismisses it.",
     "decisions": "A decision is something that cannot happen until a person says yes or no, with a reason; whoever "
                  "asked for an action cannot approve it.",
-    "playbooks": "A playbook is a set of fixed steps, approved by its owner, run on each case a monitor opens for it: "
+    "playbooks": "A playbook is a set of fixed steps, approved by its owner, run on each case a watcher opens for it: "
                  "a model judges, a path is chosen, actions are requested.",
-    "monitors": "A monitor is a saved question run on a schedule; each new record that matches opens a case.",
+    "monitors": "A watcher is a saved question run on a schedule and when its data changes; each new record that "
+                "matches opens a case.",
     "governance": "A control is a rule the service promises to keep; its evidence shows whether it is kept, and the "
                   "signed contract shows which rules were agreed.",
     "domains": "A data domain is a group of record types that share one rule about who may read them; two are linked "

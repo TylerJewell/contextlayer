@@ -109,6 +109,7 @@ public final class ControlCatalog {
     if (def.name() == null || def.name().isBlank()) problems.add(id + " has no name");
     if (def.mechanism() == null) problems.add(id + " has no mechanism");
     if (def.proofEvent() == null || def.proofEvent().isBlank()) problems.add(id + " names no proof event");
+    if (def.mechanism() != null) problems.addAll(validateMechanism(def, id));
     if (def.mechanism() == Mechanism.HUMAN) {
       var h = def.human();
       if (h == null) {
@@ -131,6 +132,68 @@ public final class ControlCatalog {
       problems.add(id + " has human_config but is not a human control");
     }
     return problems;
+  }
+
+  /** The flavor, proof event and configuration block Verify defines for the row's mechanism. */
+  private static List<String> validateMechanism(ControlDef def, String id) {
+    var problems = new ArrayList<String>();
+    var mechanism = def.mechanism();
+    var kind = mechanism.name().toLowerCase();
+    if (def.flavor() == null || def.flavor().isBlank()) {
+      problems.add(id + " has no flavor");
+    } else if (!mechanism.flavors().contains(def.flavor())) {
+      problems.add(id + " has flavor " + def.flavor() + ", which is not a " + kind + " flavor");
+    }
+    if (def.proofEvent() != null && !def.proofEvent().isBlank() && !def.proofEvent().equals(mechanism.proofEvent())) {
+      problems.add(id + " is a " + kind + " control, proved by " + mechanism.proofEvent() + ", not " + def.proofEvent());
+    }
+    if (mechanism == Mechanism.GUARDRAIL) {
+      if (def.hook() == null || !Mechanism.HOOKS.contains(def.hook())) {
+        problems.add(id + " is a guardrail without one of the six hooks");
+      } else if (!Mechanism.boundaryOf(def.hook()).equals(def.boundary())) {
+        problems.add(id + " fires at " + def.hook() + " but names the boundary " + def.boundary());
+      }
+    } else if (def.hook() != null) {
+      problems.add(id + " has a hook but is not a guardrail");
+    }
+    var sanitizer = def.sanitizerConfig();
+    if (mechanism == Mechanism.SANITIZER) {
+      if (sanitizer == null || sanitizer.dataClasses().isEmpty()) problems.add(id + " is a sanitizer without data classes");
+      if (sanitizer == null || !Mechanism.INJECTION_POINTS.contains(sanitizer.injectionPoint())) {
+        problems.add(id + " is a sanitizer without an injection point");
+      }
+    } else if (sanitizer != null) {
+      problems.add(id + " has sanitizer_config but is not a sanitizer");
+    }
+    var eval = def.evalConfig();
+    if (mechanism == Mechanism.EVAL) {
+      if (eval == null || blank(eval.checkIntent()) || blank(eval.onFinding())) {
+        problems.add(id + " is an eval without check_intent and on_finding");
+      } else if (blank(eval.triggerEvent()) && blank(eval.frequency())) {
+        problems.add(id + " is an eval with neither a trigger_event nor a frequency");
+      }
+    } else if (eval != null) {
+      problems.add(id + " has eval_config but is not an eval");
+    }
+    var gate = def.gateConfig();
+    if (mechanism == Mechanism.GATE) {
+      if (gate == null || blank(gate.documentKind()) || blank(gate.checkIntent()) || blank(gate.failsWhen())) {
+        problems.add(id + " is a gate without document_kind, check_intent and fails_when");
+      } else if (gate.runsAt().isEmpty() || !Mechanism.GATE_RUNS.containsAll(gate.runsAt())) {
+        problems.add(id + " is a gate whose runs_at is not pre-release or at-deployment");
+      }
+    } else if (gate != null) {
+      problems.add(id + " has gate_config but is not a gate");
+    }
+    if (mechanism == Mechanism.HUMAN && def.human() != null && def.flavor() != null
+        && !def.flavor().equals(def.human().flavor())) {
+      problems.add(id + " has flavor " + def.flavor() + " but its human_config says " + def.human().flavor());
+    }
+    return problems;
+  }
+
+  private static boolean blank(String text) {
+    return text == null || text.isBlank();
   }
 
   public String systemId() {

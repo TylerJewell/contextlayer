@@ -39,6 +39,12 @@ public class HttpActionExecutor implements ActionExecutor {
   private static final Pattern PATH_PARAMETER = Pattern.compile("\\{([A-Za-z0-9_]+)}");
   private static final List<String> WRITES = List.of("post", "put", "patch", "delete");
 
+  /** Why a request whose filled-in path left the source's host was not sent. */
+  public static final String OFF_HOST = "the request address does not stay on the source's host";
+
+  /** How a refusal by the source begins: the request was sent and answered. */
+  public static final String SENT_PREFIX = "the source refused the action";
+
   private final HttpSourceCaller operations;
   private final Duration timeout;
   private final ActionExecutor fallback;
@@ -99,7 +105,7 @@ public class HttpActionExecutor implements ActionExecutor {
       return Result.failed("the request address is not valid");
     }
     if (target.getHost() == null || !target.getHost().equalsIgnoreCase(resolved.base().getHost())) {
-      return Result.failed("the request address does not stay on the source's host");
+      return Result.failed(OFF_HOST);
     }
 
     var builder = HttpRequest.newBuilder(target)
@@ -128,6 +134,6 @@ public class HttpActionExecutor implements ActionExecutor {
     int status = response.statusCode();
     if (status / 100 == 2) return Result.ok("the source answered HTTP " + status);
     if (status / 100 == 5) throw new IllegalStateException("the source answered HTTP " + status + ": it may or may not have applied the action");
-    return Result.failed("the source refused the action: HTTP " + status);
+    return Result.failed(SENT_PREFIX + ": HTTP " + status);
   }
 }

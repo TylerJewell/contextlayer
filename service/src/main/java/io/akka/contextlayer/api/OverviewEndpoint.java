@@ -54,7 +54,7 @@ public class OverviewEndpoint extends PrincipalEndpoint {
   private final ComponentClient componentClient;
 
   public OverviewEndpoint(ComponentClient componentClient, Authz authz, ProjectResolver projects) {
-    super(authz, projects);
+    super(authz, projects, componentClient);
     this.componentClient = componentClient;
   }
 

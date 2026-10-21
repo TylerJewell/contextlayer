@@ -128,7 +128,7 @@ public class HumanEventTest {
   @Test
   public void thePersonWhoProposedItCannotDecideIt() {
     var alice = reviewer("alice", "approver");
-    var event = claimed(standard(), alice, T0);
+    var event = standard();
 
     var step = event.decide(alice, "APPROVE", "mine", List.of(), 0, T0 + 20_000);
 
@@ -373,5 +373,31 @@ public class HumanEventTest {
 
     assertThat(event.extend(reviewer("bob", "approver"), HOUR, "late", T0 + 25 * HOUR).refusal().message())
         .contains("past its due time");
+  }
+
+  @Test
+  public void someoneBarredFromDecidingCannotClaimTheEventEither() {
+    var event = standard();
+
+    var byProposer = event.claim(reviewer("alice", "approver"), T0 + 1000);
+
+    assertThat(byProposer.refusal().kind()).isEqualTo(Refusal.Kind.FORBIDDEN);
+    assertThat(event.claim(reviewer("bob", "approver"), T0 + 1000).refused()).isFalse();
+  }
+
+  @Test
+  public void thePeopleWhoSuppliedWhatIsUnderReviewCannotDecideIt() {
+    var raised = new HumanEventEvent.Raised("acme:he:identity:x", "acme", Controls.IDENTITY_REVIEW, "sha256:x",
+        policy(1, 0, false, List.of("contributors")), "change", "are these one entity?", "",
+        Map.of(HumanEvent.CONTRIBUTORS, "olga,pete"), "identity-rule", "email", "needs a person", "One entity?",
+        List.of(), "system:identity", T0, T0 + 24 * HOUR);
+    var event = HumanEvent.empty().apply(raised);
+
+    var byLoader = event.decide(reviewer("olga", "approver"), "APPROVE", "same person", List.of(), 0, T0 + 1000);
+
+    assertThat(byLoader.refusal().kind()).isEqualTo(Refusal.Kind.FORBIDDEN);
+    assertThat(byLoader.refusal().message()).contains("supplied");
+    assertThat(event.decide(reviewer("rita", "approver"), "APPROVE", "same person", List.of(), 0, T0 + 1000).refused())
+        .isFalse();
   }
 }

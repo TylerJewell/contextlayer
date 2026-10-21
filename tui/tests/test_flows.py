@@ -283,7 +283,7 @@ async def test_deciding_before_the_minimum_review_time_asks_first_and_counts_as_
         await pilot.pause(0.5)
         grid = table(demo_app, "governance")
         row = {str(grid.get_row_at(i)[0]): grid.get_row_at(i) for i in range(grid.row_count)}
-        rushed = next(v for k, v in row.items() if "Rushed human decisions" in k)
+        rushed = next(v for k, v in row.items() if "Rubber-Stamp Detector" in k)
         assert str(rushed[4]) == "4"  # three before, and this one
 
 
@@ -519,10 +519,10 @@ async def test_governance_lists_every_control_with_where_it_stands(demo_app):
         demo_app.action_goto("governance")
         await pilot.pause(0.4)
         rows = standing(demo_app)
-        assert len(rows) == 10
-        rushed = next(v for k, v in rows.items() if "Rushed human decisions" in k)
+        assert len(rows) == 57
+        rushed = next(v for k, v in rows.items() if "Rubber-Stamp Detector" in k)
         assert "failing" in rushed[1]
-        jailbreak = next(v for k, v in rows.items() if "Jailbreak-like" in k)
+        jailbreak = next(v for k, v in rows.items() if "Jailbreak Detector" in k)
         assert "no evidence yet" in jailbreak[1]
 
 
@@ -534,7 +534,7 @@ async def test_a_control_says_what_it_does_what_proves_it_and_who_decides(demo_a
         await pilot.press("down", "down")  # the approval control
         await pilot.pause(0.4)
         text = detail(demo_app, "governance")
-        for expected in ("needs a person's approval", "proved by HumanDecisionRecorded", "aws-agentic-scoping",
+        for expected in ("Risky Action Approval", "human-system-authorization", "proved by HumanDecisionRecorded", "aws-agentic-scoping",
                          "approver", "at least 10 s of review", "flagged, not enforced"):
             assert expected in text
 
@@ -592,7 +592,7 @@ async def test_deciding_an_identity_before_the_minimum_review_time_asks_first(de
 
         demo_app.action_goto("governance")
         await pilot.pause(0.5)
-        rushed = next(v for k, v in standing(demo_app).items() if "Rushed human decisions" in k)
+        rushed = next(v for k, v in standing(demo_app).items() if "Rubber-Stamp Detector" in k)
         assert rushed[3] == "4"
 
 
@@ -732,7 +732,7 @@ async def test_a_control_shows_who_accepted_it_and_who_said_what_counts_as_evide
                          "expects override procedure", "Coverage: partial", "missing: override procedure: none attached"):
             assert expected in text
         row = standing(demo_app)
-        approval = next(v for k, v in row.items() if "autonomy limit" in k)
+        approval = next(v for k, v in row.items() if "Risky Action Approval" in k)
         assert approval[5] == "yes" and approval[6] == "partial"
 
 
@@ -857,7 +857,7 @@ async def test_registering_the_expected_document_completes_the_coverage(make_app
 
         text = detail(app, "governance")
         assert "held, last current" in text and "Coverage: full" in text
-        approval = next(v for k, v in standing(app).items() if "autonomy limit" in k)
+        approval = next(v for k, v in standing(app).items() if "Risky Action Approval" in k)
         assert approval[6] == "full"
 
 

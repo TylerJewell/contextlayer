@@ -55,7 +55,7 @@ public class MonitorEntity extends EventSourcedEntity<Monitor, MonitorEvent> {
   }
 
   public Effect<Monitor.RunPlan> recordRun(RecordRun command) {
-    if (!currentState().exists()) return effects().error("monitor not found");
+    if (!currentState().exists()) return effects().error("watcher not found");
     if (command.at() == currentState().lastRunAt()) return effects().reply(currentState().lastPlan());
     var plan = currentState().plan(command.matchingKeys(), command.complete());
     return effects()

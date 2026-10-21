@@ -3,6 +3,7 @@ package io.akka.contextlayer.application;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import static io.akka.contextlayer.application.SourceCaller.CREDENTIAL_REFUSAL;
 import static io.akka.contextlayer.application.SourceCaller.EGRESS_REFUSAL;
 
 import io.akka.contextlayer.domain.PackDefinition;
@@ -83,7 +84,7 @@ public class HttpSourceCaller implements SourceCaller {
     }
 
     var credential = secrets.resolve(pack.credentialRef());
-    if (credential.isEmpty()) return Result.failed("the credential for this pack is not available");
+    if (credential.isEmpty()) return Result.failed(CREDENTIAL_REFUSAL);
 
     var specUri = parse(pack.source().ref());
     if (specUri.isEmpty() || !egress.allows(specUri.get().getHost())) {
@@ -236,7 +237,7 @@ public class HttpSourceCaller implements SourceCaller {
       return Resolved.failed("source kind " + pack.source().kind() + " is not supported yet");
     }
     var credential = secrets.resolve(pack.credentialRef());
-    if (credential.isEmpty()) return Resolved.failed("the credential for this pack is not available");
+    if (credential.isEmpty()) return Resolved.failed(CREDENTIAL_REFUSAL);
     var specUri = parse(pack.source().ref());
     if (specUri.isEmpty() || !egress.allows(specUri.get().getHost())) {
       return Resolved.failed("the source is not on the " + EGRESS_REFUSAL);

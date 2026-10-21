@@ -22,9 +22,9 @@ Optimize. This page says what that means for the code, and what the platform sti
 
 | Permission | Allows |
 |---|---|
-| `project.governedContext.read` | Look at playbooks, connectors, cases, monitors, evidence and compliance |
-| `project.governedContext.operate` | Feed records in, ask questions, request actions, run monitors, build playbooks and connectors |
-| `project.governedContext.review` | Judge identity links, cases, human events and unknown action outcomes |
+| `project.governedContext.read` | Look at playbooks, connectors, cases, watchers, evidence and compliance |
+| `project.governedContext.operate` | Feed records in, ask questions, request actions, run watchers, build playbooks and connectors |
+| `project.governedContext.review` | Judge links, cases, human events and unknown action outcomes |
 | `project.governedContext.approve` | Authorize an action, a release, a stage change or a connector |
 | `project.governedContext.administer` | Waive controls and set where notifications go |
 
@@ -51,8 +51,8 @@ role any caller has is `admin`, and a domain separates callers only by the peopl
 ## Live data
 
 A source can push its changes (see `README.md`). The service reads the service stream `entity_changes` of
-the publishing service in the same project, and tells connected watchers through a notification stream of a
-per-project entity. Notices are not stored; the stream is the way to watch, and the data itself is always
+the publishing service in the same project, and tells connected clients through a notification stream of a
+per-project entity. Notices are not stored; the stream is the way to follow it, and the data itself is always
 read from the graph.
 
 ## Storage

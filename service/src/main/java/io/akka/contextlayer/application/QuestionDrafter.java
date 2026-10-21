@@ -29,7 +29,14 @@ import java.util.regex.Pattern;
 public class QuestionDrafter {
 
   /** @param question null when the model asked for clarification or no valid draft was reached */
-  public record Drafted(StructuredQuestion question, String explanation, String clarification, List<String> problems) {}
+  /** @param draftId the draft's id, set when a question was drafted, to be passed back when a person runs it */
+  public record Drafted(
+      StructuredQuestion question, String explanation, String clarification, List<String> problems, String draftId) {
+
+    public Drafted(StructuredQuestion question, String explanation, String clarification, List<String> problems) {
+      this(question, explanation, clarification, problems, "");
+    }
+  }
 
   public static final int MAX_REQUEST = 1000;
   private static final int MAX_CATEGORIES = 8;
@@ -56,6 +63,12 @@ public class QuestionDrafter {
     var shown = describe(schema);
     var id = UUID.randomUUID().toString();
     var recorder = new EvidenceRecorder(componentClient);
+    // The runtime's question-shape guardrail refuses a call that shows more than the shape; checking it here too
+    // records the verdict beside the draft, and nothing is sent when it would be refused.
+    var shape = shapeProblems(shown);
+    record(recorder, orgId, Controls.SHAPE_ONLY_DRAFTING, id, shape.isEmpty() ? "PASS" : "BLOCK",
+        shape.isEmpty() ? "CONTINUED" : "BLOCKED", shape.isEmpty() ? "shape-only" : String.join("; ", shape), "");
+    if (!shape.isEmpty()) return new Drafted(null, "", "", List.of("the data's shape could not be shown safely"));
 
     String feedback = "";
     Drafted last = null;
@@ -68,20 +81,20 @@ public class QuestionDrafter {
       if (draft == null) {
         last = new Drafted(null, "", "", List.of("the model gave no answer"));
       } else if (draft.clarification() != null && !draft.clarification().isBlank()) {
-        record(recorder, orgId, id, "PASS", "CONTINUED", "needs-clarification", interaction);
         return new Drafted(null, "", draft.clarification().trim(), List.of());
       } else {
         last = check(draft, schema);
         if (last.problems().isEmpty()) {
-          record(recorder, orgId, id, "PASS", "CONTINUED", "drafted", interaction);
+          record(recorder, orgId, Controls.DRAFT_SCHEMA_CHECK, id, "PASS", "CONTINUED", "drafted", interaction);
           // The model was shown only what the asker may read, but a draft can still link two domains.
           var access = DomainAccess.check(componentClient, orgId, domains, caller, DomainAccess.typesOf(last.question()));
-          return access.allowed() ? last : new Drafted(null, "", "", access.problems());
+          return access.allowed() ? new Drafted(last.question(), last.explanation(), "", List.of(), id)
+              : new Drafted(null, "", "", access.problems());
         }
       }
       feedback = String.join("\n", last.problems());
     }
-    record(recorder, orgId, id, "BLOCK", "BLOCKED", "invalid-draft", interaction);
+    record(recorder, orgId, Controls.DRAFT_SCHEMA_CHECK, id, "BLOCK", "BLOCKED", "invalid-draft", interaction);
     return new Drafted(null, "", "", last.problems());
   }
 
@@ -259,9 +272,9 @@ public class QuestionDrafter {
     }
   }
 
-  private static void record(EvidenceRecorder recorder, String orgId, String id, String decision, String consequence,
-      String reason, String interaction) {
-    recorder.record(new EvidenceRecorder.Fact(orgId, Controls.QUESTION_DRAFT, id, EvaluationMode.ENFORCING, decision,
+  private static void record(EvidenceRecorder recorder, String orgId, String control, String id, String decision,
+      String consequence, String reason, String interaction) {
+    recorder.record(new EvidenceRecorder.Fact(orgId, control, id, EvaluationMode.ENFORCING, decision,
         consequence, reason, "draft " + id, "system:drafter", "system", interaction, false, "", 0));
   }
 }

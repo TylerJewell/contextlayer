@@ -1,4 +1,4 @@
-"""Cases: what monitors found, the evidence, and the timeline of everything that happened."""
+"""Cases: what watchers found, the evidence, and the timeline of everything that happened."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ FILTERS = [("Open", "OPEN"), ("No longer matching", "NO_LONGER_MATCHING"), ("Res
 
 
 class CasesPane(Pane):
-    columns = ("", "Row", "Monitor", "Routed to", "Opened", "State")
+    columns = ("", "Row", "Watcher", "Routed to", "Opened", "State")
     empty_text = "No cases in this view."
     BINDINGS = [Binding("r", "close('resolve')", "Resolve"), Binding("x", "close('dismiss')", "Dismiss"),
                 Binding("n", "annotate", "Add note"), Binding("m", "model_call", "Model call")]
@@ -70,7 +70,7 @@ class CasesPane(Pane):
 
     def describe(self, case: dict[str, Any]) -> RenderableType:
         head = Text.from_markup(f"[bold]{case['key']}[/]   {badge(case['status'])}")
-        sub = Text.from_markup(f"[{DIM}]found by monitor {case['monitorId']} (v{case['monitorVersion']})"
+        sub = Text.from_markup(f"[{DIM}]found by watcher {case['monitorId']} (v{case['monitorVersion']})"
                                f" · routed to {case['routeTo'] or '—'}"
                                + (f" · handled by playbook {case['assistantId']}" if case['assistantId'] else "") + "[/]")
         evidence = Table(title="Evidence", title_justify="left", box=None, expand=True, show_header=False)

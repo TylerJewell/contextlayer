@@ -80,7 +80,8 @@ class GovernancePane(Pane):
             Text(c["summary"] or ""),
             *self.claims_block(c),
             Text(),
-            Text.from_markup(f"[{DIM}]{c['mechanism']} control · {c['lifecycle']} · acts at {c['boundary']}[/]"),
+            Text.from_markup(f"[{DIM}]{c['mechanism']} control · {c.get('flavor') or 'no flavor'}"
+                             f"{' at ' + c['hook'] if c.get('hook') else ''} · {c['lifecycle']} · acts at {c['boundary']}[/]"),
             Text.from_markup(f"[{DIM}]proved by {c['proofEvent']} · catalog {self.digest[:19]}…[/]"),
             _contract_line(c.get("contract"), self.contract),
         ]

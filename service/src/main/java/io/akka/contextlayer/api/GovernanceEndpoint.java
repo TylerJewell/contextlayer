@@ -23,6 +23,8 @@ import io.akka.contextlayer.application.IntegrityChainEntity;
 import io.akka.contextlayer.application.IntegrityConsumer;
 import io.akka.contextlayer.application.EvidenceRecorder;
 import io.akka.contextlayer.application.EvidenceView;
+import io.akka.contextlayer.application.Sampled;
+import io.akka.contextlayer.application.Verdicts;
 import io.akka.contextlayer.application.WaiverEntity;
 import akka.optimize.auth.Authz;
 import io.akka.contextlayer.auth.Permission;
@@ -33,6 +35,7 @@ import io.akka.contextlayer.governance.ControlCatalog;
 import io.akka.contextlayer.governance.SignedContract;
 import io.akka.contextlayer.governance.ControlClaims;
 import io.akka.contextlayer.governance.ControlDef;
+import io.akka.contextlayer.governance.Controls;
 import io.akka.contextlayer.governance.EvaluationMode;
 import io.akka.contextlayer.governance.Integrity;
 import io.akka.contextlayer.governance.RuntimeEvidence;
@@ -42,6 +45,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -68,8 +72,9 @@ public class GovernanceEndpoint extends PrincipalEndpoint {
       String slaTarget, boolean rationaleRequired, int minimumReviewSeconds, boolean enforceMinimum,
       List<String> allowedActions) {}
 
-  public record ControlView(String rowId, String name, String mechanism, String lifecycle, String corpusRef,
-      String summary, String proofEvent, String boundary, HumanSummary human) {}
+  /** @param flavor the mechanism's sub-type; @param hook a guardrail's hook, null for the other mechanisms */
+  public record ControlView(String rowId, String name, String mechanism, String flavor, String hook, String lifecycle,
+      String corpusRef, String summary, String proofEvent, String boundary, HumanSummary human) {}
 
   public record ControlList(String systemId, String digest, List<ControlView> controls) {}
 
@@ -178,7 +183,7 @@ public class GovernanceEndpoint extends PrincipalEndpoint {
   private final LedgerClient ledger;
 
   public GovernanceEndpoint(ComponentClient componentClient, LedgerClient ledger, Authz authz, ProjectResolver projects) {
-    super(authz, projects);
+    super(authz, projects, componentClient);
     this.componentClient = componentClient;
     this.ledger = ledger;
   }
@@ -189,14 +194,14 @@ public class GovernanceEndpoint extends PrincipalEndpoint {
    */
   @Get("/interactions/{interactionId}")
   public InteractionView interaction(String interactionId) {
-    authorize(Permission.READ);
+    var caller = authorize(Permission.READ);
     InteractionRecord record;
     try {
       record = ledger.getInteraction(interactionId);
     } catch (java.util.NoSuchElementException e) {
       throw HttpException.notFound();
     }
-    if (!record.sessionId().startsWith(project() + ":")) throw HttpException.notFound();
+    requireOwnProject(record.sessionId().startsWith(project() + ":"), "interaction", caller);
     var verdicts = ledger.getEvaluations(interactionId).stream().map(e -> new VerdictView(
         e.evaluatorComponentId(), e.controlId().orElse(""),
         switch (e.outcome()) {
@@ -310,9 +315,29 @@ public class GovernanceEndpoint extends PrincipalEndpoint {
         seq -> Optional.ofNullable(componentClient.forEventSourcedEntity(IntegrityConsumer.linkId(project(), seq))
             .method(ChainLinkEntity::get).invoke().link()),
         id -> Optional.ofNullable(componentClient.forEventSourcedEntity(id).method(EvidenceEntity::get).invoke().evidence()));
+    recordIntegrity(result, from, chain.head());
     Long next = result.lastSeq() < chain.count() && result.checked() > 0 ? result.lastSeq() + 1 : null;
     return new IntegrityReport(Integrity.HASH_CHAINED, chain.count(), chain.head().isEmpty() ? null : chain.head(), from,
         result.checked(), result.intact(), result.problems(), next);
+  }
+
+  /**
+   * The verdict of custom-cl0052. Recording it adds to the chain it checked, so a check that passes is recorded once an
+   * hour, and one that finds problems once for each set of problems it finds.
+   */
+  private void recordIntegrity(Integrity.Result result, long from, String head) {
+    String part;
+    if (result.intact()) {
+      if (!Sampled.firstThisHour(project() + "|" + Controls.EVIDENCE_CHAIN_INTEGRITY)) return;
+      part = Sampled.hourKey("intact");
+    } else {
+      part = "problems~" + Integer.toHexString(result.problems().hashCode());
+    }
+    verdicts().eval(project(), Controls.EVIDENCE_CHAIN_INTEGRITY, part, result.intact(),
+        result.intact() ? result.checked() + " records from " + from + " intact"
+            : result.problems().size() + " problem(s) in " + result.checked() + " records from " + from + ": "
+                + String.join("; ", result.problems()),
+        "chain head " + head);
   }
 
   /**
@@ -393,9 +418,14 @@ public class GovernanceEndpoint extends PrincipalEndpoint {
     required(body);
     ControlCatalog.current().find(controlId).orElseThrow(HttpException::notFound);
     long now = System.currentTimeMillis();
-    var claims = call(() -> componentClient.forEventSourcedEntity(claimsId(project(), controlId))
-        .method(ControlClaimsEntity::accept).invoke(new ControlClaimsEntity.Accept(caller.subject(), caller.authorityBasis(),
-            body.rationale(), ControlCatalog.current().digest(), now)));
+    var eventId = GateDecisions.decide(componentClient, caller, project(), Controls.CONTROL_ACCEPTANCE,
+        call(() -> ScopedId.of(project(), "he", "accept", controlId, String.valueOf(now))), "change",
+        "Accept control " + controlId + " for the project", "", Map.of("controlId", controlId),
+        "Does the project take control " + controlId + " on?", "system:governance", "APPROVE", body.rationale());
+    var claims = GateDecisions.applying(componentClient, eventId, "accepted", () -> call(() ->
+        componentClient.forEventSourcedEntity(claimsId(project(), controlId))
+            .method(ControlClaimsEntity::accept).invoke(new ControlClaimsEntity.Accept(caller.subject(),
+                caller.authorityBasis(), body.rationale(), ControlCatalog.current().digest(), now))));
     record(project(), controlId, "ControlAccepted", "accepted-" + now, "ACCEPT", body.rationale(), caller.subject(),
         caller.authorityBasis(), now);
     return acceptanceView(claims);
@@ -432,9 +462,16 @@ public class GovernanceEndpoint extends PrincipalEndpoint {
     long now = System.currentTimeMillis();
     var expects = body.expects() == null ? List.<ControlClaims.Expectation>of()
         : body.expects().stream().map(e -> new ControlClaims.Expectation(e.name(), e.maxAgeDays())).toList();
-    var claims = call(() -> componentClient.forEventSourcedEntity(claimsId(project(), controlId))
-        .method(ControlClaimsEntity::assertEvidence).invoke(new ControlClaimsEntity.Assert(body.evidenceKind(), expects,
-            caller.subject(), caller.authorityBasis(), body.rationale(), now)));
+    var eventId = GateDecisions.decide(componentClient, caller, project(), Controls.EVIDENCE_ASSERTION,
+        call(() -> ScopedId.of(project(), "he", "assert", controlId, String.valueOf(now))), "change",
+        "Assert what counts as evidence for control " + controlId, "",
+        Map.of("controlId", controlId, "evidenceKind", body.evidenceKind()),
+        "Do " + body.evidenceKind() + " records count as evidence for control " + controlId + "?", "system:governance",
+        "APPROVE", body.rationale());
+    var claims = GateDecisions.applying(componentClient, eventId, "asserted", () -> call(() ->
+        componentClient.forEventSourcedEntity(claimsId(project(), controlId))
+            .method(ControlClaimsEntity::assertEvidence).invoke(new ControlClaimsEntity.Assert(body.evidenceKind(), expects,
+                caller.subject(), caller.authorityBasis(), body.rationale(), now))));
     record(project(), controlId, "EvidenceAsserted", "asserted-" + now, "ASSERT", body.rationale(), caller.subject(),
         caller.authorityBasis(), now);
     return assertionView(claims.assertion());
@@ -497,7 +534,10 @@ public class GovernanceEndpoint extends PrincipalEndpoint {
         Instant.ofEpochMilli(v.at()).toString());
   }
 
-  /** Waives a control, optionally until a time. The waiver and who granted it are also evidence. */
+  /**
+   * Waives a control until a time no more than {@link #MAX_WAIVER} away. Granting it is a decision under control
+   * custom-cl0047; the waiver and who granted it are also recorded beside the waived control's own evidence.
+   */
   @Post("/controls/{controlId}/waiver")
   public WaiverView waive(String controlId, WaiveRequest body) {
     var caller = authorize(Permission.ADMINISTER);
@@ -505,17 +545,26 @@ public class GovernanceEndpoint extends PrincipalEndpoint {
     ControlCatalog.current().find(controlId).orElseThrow(HttpException::notFound);
     if (body.reason() == null || body.reason().isBlank()) throw HttpException.badRequest("a reason is required");
     long now = System.currentTimeMillis();
+    if (body.until() == null || body.until().isBlank()) {
+      throw HttpException.badRequest("a waiver needs an end (until), at most " + MAX_WAIVER.toDays() + " days away");
+    }
     long until;
     try {
-      until = body.until() == null || body.until().isBlank() ? 0 : Instant.parse(body.until()).toEpochMilli();
+      until = Instant.parse(body.until()).toEpochMilli();
     } catch (DateTimeParseException e) {
       throw HttpException.badRequest("until must be an ISO-8601 instant");
     }
-    if (until != 0 && until > now + MAX_WAIVER.toMillis()) {
-      throw HttpException.badRequest("a waiver can last at most " + MAX_WAIVER.toDays() + " days");
+    if (until <= now || until > now + MAX_WAIVER.toMillis()) {
+      throw HttpException.badRequest("a waiver must end in the future and within " + MAX_WAIVER.toDays() + " days");
     }
-    var state = call(() -> componentClient.forKeyValueEntity(waiverId(project(), controlId)).method(WaiverEntity::grant)
-        .invoke(new WaiverEntity.Grant(body.reason(), caller.subject(), caller.authorityBasis(), until, now)));
+    var eventId = GateDecisions.decide(componentClient, caller, project(), Controls.CONTROL_WAIVER,
+        call(() -> ScopedId.of(project(), "he", "waive", controlId, String.valueOf(now))), "change",
+        "Waive control " + controlId + " until " + body.until(), "", Map.of("controlId", controlId, "until", body.until()),
+        "Should control " + controlId + " be waived until " + body.until() + "?", "system:governance", "APPROVE",
+        body.reason());
+    var state = GateDecisions.applying(componentClient, eventId, "waived until " + body.until(), () -> call(() ->
+        componentClient.forKeyValueEntity(waiverId(project(), controlId)).method(WaiverEntity::grant)
+            .invoke(new WaiverEntity.Grant(body.reason(), caller.subject(), caller.authorityBasis(), until, now))));
     record(project(), controlId, "ControlWaived", "waived-" + now, "WAIVE", body.reason(), caller.subject(),
         caller.authorityBasis(), now);
     return waiverView(controlId, state);
@@ -548,11 +597,28 @@ public class GovernanceEndpoint extends PrincipalEndpoint {
         .method(WaiverEntity::get).invoke());
     var s = Compliance.assess(items, waiver, FRESHNESS, now);
     var claims = readClaims(orgId, control.rowId());
+    recordDocumentFreshness(orgId, control.rowId(), claims, now);
     return new ControlStanding(control.rowId(), control.name(), control.mechanism().name().toLowerCase(),
         s.status().name(), s.why(), s.enforcing(), s.upheld(), s.breached(), s.flagged(),
         s.lastEnforcingAt() == 0 ? null : Instant.ofEpochMilli(s.lastEnforcingAt()).toString(),
         acceptanceView(claims), assertionView(claims.assertion()), coverageView(orgId, claims, now),
         SignedContract.current().standingOf(ControlCatalog.current(), control.rowId()).name());
+  }
+
+  /**
+   * The verdict of custom-cl0055 for one control: its acceptance is at the catalog in force and the documents its
+   * assertion expects are attached and current. A report is read often, so the verdict is recorded once an hour.
+   */
+  private void recordDocumentFreshness(String orgId, String controlId, ControlClaims claims, long now) {
+    if (claims.acceptance() == null && !claims.asserted()) return;
+    if (!Sampled.firstThisHour(orgId + "|" + Controls.DOCUMENT_FRESHNESS + "|" + controlId)) return;
+    var findings = new java.util.ArrayList<String>();
+    if (claims.acceptance() != null && !claims.acceptanceCurrent(ControlCatalog.current().digest())) {
+      findings.add("accepted at an earlier catalog");
+    }
+    if (claims.asserted()) findings.addAll(Documents.coverage(componentClient, orgId, claims, now).unmet());
+    verdicts().eval(orgId, Controls.DOCUMENT_FRESHNESS, Sampled.hourKey(controlId), findings.isEmpty(),
+        findings.isEmpty() ? "acceptance current and documents attached" : String.join("; ", findings), controlId);
   }
 
   private ControlClaims readClaims(String orgId, String controlId) {
@@ -618,7 +684,8 @@ public class GovernanceEndpoint extends PrincipalEndpoint {
 
   private static ControlView view(ControlDef c) {
     var h = c.human();
-    return new ControlView(c.rowId(), c.name(), c.mechanism().name().toLowerCase(), c.lifecycle(), c.corpusRef(),
+    return new ControlView(c.rowId(), c.name(), c.mechanism().name().toLowerCase(), c.flavor(), c.hook(), c.lifecycle(),
+        c.corpusRef(),
         c.summary(), c.proofEvent(), c.boundary(),
         h == null ? null : new HumanSummary(h.flavor(), h.mode(), h.roles(), h.reviewMode(), h.required(),
             h.slaTarget(), h.rationaleRequired(), h.minimumReviewSeconds(), h.enforceMinimum(), h.allowedActions()));

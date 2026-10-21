@@ -5,10 +5,12 @@ import static java.time.Duration.ofSeconds;
 import akka.Done;
 import akka.javasdk.annotations.Component;
 import akka.javasdk.client.ComponentClient;
+import akka.javasdk.timer.TimerScheduler;
 import akka.javasdk.workflow.Workflow;
 import io.akka.contextlayer.domain.ActionCatalog;
 import io.akka.contextlayer.domain.ActionPolicy;
 import io.akka.contextlayer.domain.ActionStatus;
+import io.akka.contextlayer.domain.AssistantStage;
 import io.akka.contextlayer.domain.RiskClass;
 import io.akka.contextlayer.domain.ScopedId;
 import io.akka.contextlayer.governance.ControlCatalog;
@@ -69,10 +71,12 @@ public class ActionWorkflow extends Workflow<ActionWorkflow.Run> {
 
   private final ComponentClient componentClient;
   private final ActionExecutor executor;
+  private final TimerScheduler timers;
 
-  public ActionWorkflow(ComponentClient componentClient, ActionExecutor executor) {
+  public ActionWorkflow(ComponentClient componentClient, ActionExecutor executor, TimerScheduler timers) {
     this.componentClient = componentClient;
     this.executor = executor;
+    this.timers = timers;
   }
 
   @Override
@@ -147,7 +151,7 @@ public class ActionWorkflow extends Workflow<ActionWorkflow.Run> {
         .invoke(new ActionLedgerEntity.Request(run.orgId(), run.assistantId(), run.actionKey(),
             run.actionType(), run.payload(), risk, assistant.stage(), releaseId, resolvedRisk.isPresent(), halted));
     note(run, "requested " + run.actionType() + ": " + recorded.status() + " (" + recorded.reason() + ")");
-    recordPolicyEvidence(run, recorded.status(), recorded.reason());
+    recordActionGuards(run, predicted, assistant.stage() == AssistantStage.SHADOW);
 
     return switch (recorded.status()) {
       case AWAITING_APPROVAL -> stepEffects()
@@ -170,10 +174,17 @@ public class ActionWorkflow extends Workflow<ActionWorkflow.Run> {
         .contains(phase);
   }
 
-  /** What the person is shown the action would send: personal data masked, and cut short. */
-  private static String shownPayload(String payload) {
-    var masked = PersonalDataMasker.mask(payload == null ? "" : payload).text();
-    return masked.length() <= 300 ? masked : masked.substring(0, 299) + "…";
+  /**
+   * What the person is shown the action would send: personal data masked, and cut short. The masking is recorded
+   * under {@link Controls#APPROVER_VIEW_MASK}.
+   */
+  private String shownPayload(Run run) {
+    var masked = PersonalDataMasker.mask(run.payload() == null ? "" : run.payload());
+    new Verdicts(componentClient).sanitizer(run.orgId(), Controls.APPROVER_VIEW_MASK,
+        run.assistantId() + "~" + run.actionKey(), masked.total(), run.actionType() + " " + run.actionKey(),
+        "system:approvals");
+    var text = masked.text();
+    return text.length() <= 300 ? text : text.substring(0, 299) + "…";
   }
 
   /** The human event an approval waits on. Raising it twice leaves the first, so a retried step is safe. */
@@ -186,7 +197,7 @@ public class ActionWorkflow extends Workflow<ActionWorkflow.Run> {
         humanEventId(run.orgId(), run.assistantId(), run.actionKey()), run.orgId(), "action",
         "Run " + run.actionType() + " for playbook " + run.assistantId(), run.assistantId(),
         Map.of("actionKey", run.actionKey(), "actionType", run.actionType(), "risk", risk.name(),
-            "payload", shownPayload(run.payload())),
+            "payload", shownPayload(run)),
         "workflow", "risk=" + risk.name(), why,
         "Should playbook " + run.assistantId() + " be allowed to run " + run.actionType() + "?",
         List.of("The action is what the playbook meant to do.", "The payload is within what the playbook may change."),
@@ -195,22 +206,33 @@ public class ActionWorkflow extends Workflow<ActionWorkflow.Run> {
   }
 
   /**
-   * The policy gate's decision as evidence. A shadow run is recorded as shadow, which proves
-   * nothing; a request waiting for a person is the approval control's evidence, not this one's.
+   * Each guardrail on an action records its verdict, checked in order: the halt, whether the action is available,
+   * whether it is ever allowed, and the playbook's stage. The rule that refused blocks and the ones before it pass;
+   * the ones after it never looked. A request a person must approve passed all four, and the approval is then the
+   * human control's. A shadow playbook's verdicts are recorded as shadow, which proves nothing: nothing is sent.
    */
-  private void recordPolicyEvidence(Run run, ActionStatus status, String reason) {
-    EvaluationMode mode = status == ActionStatus.WOULD_DO ? EvaluationMode.SHADOW : EvaluationMode.ENFORCING;
-    String decision;
-    String consequence;
-    switch (status) {
-      case DENIED -> { decision = "BLOCK"; consequence = "BLOCKED"; }
-      case WOULD_DO -> { decision = "ALLOW"; consequence = "OBSERVED_ONLY"; }
-      case APPROVED -> { decision = "ALLOW"; consequence = "CONTINUED"; }
-      default -> { return; }
+  private void recordActionGuards(Run run, ActionPolicy.Decision decision, boolean shadow) {
+    var verdicts = new Verdicts(componentClient);
+    var mode = shadow ? EvaluationMode.SHADOW : EvaluationMode.ENFORCING;
+    var part = run.assistantId() + "~" + run.actionKey();
+    var subject = run.actionType() + " " + run.actionKey();
+    var order = List.of(ActionPolicy.Rule.HALT, ActionPolicy.Rule.AVAILABILITY, ActionPolicy.Rule.NEVER,
+        ActionPolicy.Rule.STAGE);
+    for (var rule : order) {
+      boolean refused = rule == decision.rule() && decision.status() == ActionStatus.DENIED;
+      verdicts.guardrail(run.orgId(), controlOf(rule), part, mode, !refused,
+          rule == decision.rule() ? decision.reason() : "passed", subject, "system:policy");
+      if (rule == decision.rule()) return;
     }
-    new EvidenceRecorder(componentClient).record(new EvidenceRecorder.Fact(run.orgId(), Controls.ACTION_POLICY,
-        run.assistantId() + "~" + run.actionKey(), mode, decision, consequence, reason,
-        run.actionType() + " " + run.actionKey(), "system:policy", "system", "", false, "", 0));
+  }
+
+  private static String controlOf(ActionPolicy.Rule rule) {
+    return switch (rule) {
+      case HALT -> Controls.HALT_ENFORCEMENT;
+      case AVAILABILITY -> Controls.LIVE_CONNECTOR_ACTIONS;
+      case NEVER -> Controls.NEVER_BY_PLAYBOOK;
+      case STAGE, ALLOWED -> Controls.STAGE_GATED_ACTIONS;
+    };
   }
 
   /** Tells the approval's human event that its decision has been carried out. Never stops the run. */
@@ -244,6 +266,9 @@ public class ActionWorkflow extends Workflow<ActionWorkflow.Run> {
     var run = currentState();
     // A halt that came after the request but before this approval still stops the action.
     if (HaltEntity.isHalted(componentClient, run.orgId(), run.assistantId())) {
+      new Verdicts(componentClient).guardrail(run.orgId(), Controls.HALT_ENFORCEMENT,
+          run.assistantId() + "~" + run.actionKey() + "~approved", false, "approved after the playbook was halted",
+          run.actionType() + " " + run.actionKey(), "system:policy");
       componentClient.forEventSourcedEntity(ledgerId(run)).method(ActionLedgerEntity::reject)
           .invoke(new ActionLedgerEntity.Reject("system", "playbook is halted"));
       note(run, run.actionType() + " was approved by " + run.decidedBy() + " but the playbook is halted; it did not run");
@@ -275,11 +300,7 @@ public class ActionWorkflow extends Workflow<ActionWorkflow.Run> {
     var result = call.isPresent()
         ? executor.performPack(run.orgId(), call.get(), run.payload(), ledgerId(run))
         : executor.perform(run.orgId(), run.actionType(), run.payload());
-    if (!result.succeeded() && result.detail().endsWith(SourceCaller.EGRESS_REFUSAL)) {
-      new EvidenceRecorder(componentClient).record(new EvidenceRecorder.Fact(run.orgId(), Controls.EGRESS,
-          "action~" + run.assistantId() + "~" + run.actionKey(), EvaluationMode.ENFORCING, "BLOCK", "BLOCKED",
-          "host-not-allowed", run.actionType(), "system:egress", "system", "", false, "", 0));
-    }
+    recordSendGuards(run, call.isPresent(), result);
     if (result.succeeded()) {
       componentClient.forEventSourcedEntity(ledgerId(run)).method(ActionLedgerEntity::succeed).invoke(new ActionLedgerEntity.Finish(result.detail()));
       note(run, run.actionType() + " succeeded");
@@ -288,6 +309,34 @@ public class ActionWorkflow extends Workflow<ActionWorkflow.Run> {
     componentClient.forEventSourcedEntity(ledgerId(run)).method(ActionLedgerEntity::fail).invoke(new ActionLedgerEntity.Finish(result.detail()));
     note(run, run.actionType() + " failed: " + result.detail());
     return stepEffects().updateState(run.withPhase(ActionStatus.FAILED.name())).thenEnd();
+  }
+
+  /**
+   * The guardrails on sending a connector action: the credential resolved by reference, the hosts on the egress
+   * list and the request staying on the source's host, and the action sent once under its Idempotency-Key. A
+   * built-in action sends nothing out, so only the send-once guardrail applies to it.
+   */
+  private void recordSendGuards(Run run, boolean packAction, ActionExecutor.Result result) {
+    var verdicts = new Verdicts(componentClient);
+    var part = "action~" + run.assistantId() + "~" + run.actionKey();
+    var subject = run.actionType() + " " + run.actionKey();
+    var detail = result.detail() == null ? "" : result.detail();
+    boolean sent = true;
+    if (packAction) {
+      boolean credentialRefused = detail.equals(SourceCaller.CREDENTIAL_REFUSAL);
+      verdicts.guardrail(run.orgId(), Controls.CREDENTIALS_BY_REFERENCE, part, !credentialRefused,
+          credentialRefused ? "credential-not-resolved" : "credential-resolved", subject, "system:executor");
+      if (credentialRefused) return;
+      boolean hostRefused = detail.endsWith(SourceCaller.EGRESS_REFUSAL) || detail.equals(HttpActionExecutor.OFF_HOST);
+      verdicts.guardrail(run.orgId(), Controls.EGRESS, part, !hostRefused,
+          hostRefused ? "host-not-allowed" : "host-allowed", subject, "system:egress");
+      if (hostRefused) return;
+      sent = result.succeeded() || detail.startsWith(HttpActionExecutor.SENT_PREFIX);
+    }
+    if (sent) {
+      verdicts.guardrail(run.orgId(), Controls.EXACTLY_ONCE_ACTIONS, part, true, "sent once under its idempotency key",
+          subject, "system:executor");
+    }
   }
 
   /** The pack action a "pack.action" type names, when the pack is live and offers it. */
@@ -310,6 +359,11 @@ public class ActionWorkflow extends Workflow<ActionWorkflow.Run> {
         .method(ActionLedgerEntity::markOutcomeUnknown)
         .invoke(new ActionLedgerEntity.Finish("the call did not complete; a person must check the target system"));
     note(run, run.actionType() + " has an unknown outcome; a person must check the target system");
+    new Verdicts(componentClient).guardrail(run.orgId(), Controls.EXACTLY_ONCE_ACTIONS,
+        "action~" + run.assistantId() + "~" + run.actionKey(), true, "outcome unknown: not retried, sent to a person",
+        run.actionType() + " " + run.actionKey(), "system:executor");
+    UnknownOutcomes.raise(componentClient, timers, run.orgId(), run.assistantId(), run.actionKey(), run.actionType(),
+        run.requestedBy(), run.decidedBy());
     return stepEffects().updateState(run.withPhase(ActionStatus.OUTCOME_UNKNOWN.name())).thenEnd();
   }
 

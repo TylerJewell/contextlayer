@@ -11,21 +11,21 @@ terminal console or the command line, an agent uses the routes, and another Akka
 
 ```
  sources --------read--> connectors --+
- Akka services --stream--> consumer ---+--> entity graph (Neo4j) <--- questions, monitors, standing questions
+ Akka services --stream--> consumer ---+--> entity graph (Neo4j) <--- questions, watchers, followed questions
  other sources --webhook--------------+          ^                          |
                                                  |                          v
- people ---- identity, approvals, domains ---> event sourced entities ---> evidence ledger (hash chained)
+ people ---- links, approvals, domains ------> event sourced entities ---> evidence ledger (hash chained)
 ```
 
 ## Where data lives, and why
 
 | Data | Held in | Why |
 |---|---|---|
-| Records read or pushed from sources, and the links between them | Neo4j, one node per record, `orgId` on every node and statement | Questions are composed at run time and follow identity and relationships across record types. Views are fixed when the service is built, so they cannot do this. The graph can be rebuilt from the sources, so it is not a record of what happened. |
+| Records read or pushed from sources, and the links between them | Neo4j, one node per record, `orgId` on every node and statement | Questions are composed at run time and follow links and relationships across record types. Views are fixed when the service is built, so they cannot do this. The graph can be rebuilt from the sources, so it is not a record of what happened. |
 | Decisions, evidence, cases, halts, claims, documents, domains | Event sourced entities and key value entities | The platform keeps them durable, and the journal is the history. |
 | Lists and lookups over those | Views | Eventually consistent. A route that must see its own write reads the entity, not a view. |
-| What changed, for watchers | A notification stream of a per-project entity | Real time and not stored. A watcher that reconnects reads the answer again. |
-| Timers | Akka timers, unique by name | Monitors, scheduled reads, and the window that batches monitor runs after a change. |
+| What changed, for clients following it | A notification stream of a per-project entity | Real time and not stored. A client that reconnects reads the answer again. |
+| Timers | Akka timers, unique by name | Watchers, scheduled reads, and the window that batches watcher runs after a change. |
 
 Neo4j Community has one database, so projects are separated by a property and every compiled statement carries the project id.
 
@@ -39,12 +39,12 @@ Neo4j Community has one database, so projects are separated by a property and ev
 - **Related.** A type can declare relationships by naming the field that holds the id of the record it points at. A reference
   to a record not held yet is kept and joined when the record arrives.
 
-All three end in the same place: the record is written to the graph, offered to the identity clusters, and, if it changed
-something a monitor or a watcher reads, announced.
+All three end in the same place: the record is written to the graph, offered to the links, and, if it changed
+something a watcher or a followed question reads, announced.
 
 ## Questions
 
-A question is data: a base type, conditions, and links by identity or by named relationship. It cannot express a write, every
+A question is data: a base type, conditions, and links by match (the same person or thing) or by named relationship. It cannot express a write, every
 part is bounded, and it compiles to one read-only parameterized statement, so it can be checked before it runs. A question in
 words is drafted by a model that sees only the shape of the data and never a record; a person reads the draft and runs it.
 
@@ -68,7 +68,7 @@ Before it runs, a question is checked against the project's data domains. Every 
 ## Scaling
 
 - **Stateless service instances.** State is in entities and the graph, so instances can be added behind the platform's routing. A
-  watcher's stream is tied to the instance it connected to and reconnects on its own.
+  follower's stream is tied to the instance it connected to and reconnects on its own.
 - **Entities scale by id.** Most are per record, per control, per project or per decision. Two are per project and take every
   write of their kind: the integrity chain, which orders evidence, and the change feed, which publishes. Their throughput is one
   entity's, which is the limit on evidence recorded and changes announced per project. The scale test measures the store, not
@@ -96,5 +96,5 @@ Before it runs, a question is checked against the project's data domains. Every 
 - A source that cannot be read leaves the data as it was and is reported `STALE` or `UNAVAILABLE`. It is never shown as empty.
 - An action whose outcome is unknown is never retried. A person resolves it.
 - A notification that cannot be delivered is recorded with why, and does not stop what caused it.
-- A monitor whose owner is no longer granted what it reads stops, with a recorded refusal.
+- A watcher whose owner is no longer granted what it reads stops, with a recorded refusal.
 - A stream consumer holds at a change it cannot place until a connector is live, and retries, so nothing is lost.

@@ -96,7 +96,7 @@ public class ComplianceAskIntegrationTest extends LayerTestBase {
     assertThat(answer.unsupported()).contains("the number 99").contains("the claim \"fully compliant\"");
     assertThat(answer.summary()).doesNotContain("99").contains("accepted by dana").contains("What the records do not show:");
     Awaitility.await().atMost(15, TimeUnit.SECONDS).untilAsserted(() -> {
-      var evidence = get("/orgs/" + org + "/governance/evidence?control=" + Controls.COMPLIANCE_ANSWER, GovernanceEndpoint.EvidenceExport.class).evidence();
+      var evidence = get("/orgs/" + org + "/governance/evidence?control=" + Controls.FACTS_ONLY_WORDING, GovernanceEndpoint.EvidenceExport.class).evidence();
       assertThat(evidence).singleElement().satisfies(e -> {
         assertThat(e.decision()).isEqualTo("BLOCK");
         assertThat(e.reasonCode()).isEqualTo("unsupported-claim");
@@ -149,7 +149,8 @@ public class ComplianceAskIntegrationTest extends LayerTestBase {
   public void theIntegrityQuestionStatesWhichStoresAreTamperEvidentAndWhatCannotBeDetected() {
     var org = claimed();
     Awaitility.await().atMost(20, TimeUnit.SECONDS).untilAsserted(() ->
-        assertThat(get("/orgs/" + org + "/governance/integrity", GovernanceEndpoint.IntegrityReport.class).count()).isEqualTo(2));
+        assertThat(get("/orgs/" + org + "/governance/integrity", GovernanceEndpoint.IntegrityReport.class).count())
+            .isEqualTo(get("/orgs/" + org + "/governance/evidence", GovernanceEndpoint.EvidenceExport.class).count()));
     choose("{\"intent\":\"INTEGRITY\",\"controlId\":\"\",\"periodDays\":null,\"clarification\":\"\"}");
     word("The evidence ledger is hash chained and the other stores have no digest.");
 
@@ -157,7 +158,7 @@ public class ComplianceAskIntegrationTest extends LayerTestBase {
 
     assertThat(answer.facts()).anySatisfy(f -> assertThat(f.text()).contains("HashChained"));
     assertThat(answer.facts()).anySatisfy(f -> assertThat(f.text()).contains("NoIntegrity"));
-    assertThat(answer.facts()).anySatisfy(f -> assertThat(f.text()).contains("holds 2 records").contains("none altered"));
+    assertThat(answer.facts()).anySatisfy(f -> assertThat(f.text()).containsPattern("holds \\d+ records").contains("none altered"));
     assertThat(answer.limits()).anyMatch(l -> l.contains("rewrite the whole ledger"));
   }
 

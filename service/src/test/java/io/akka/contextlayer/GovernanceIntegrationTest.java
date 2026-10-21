@@ -231,7 +231,8 @@ private Wire wire() {    return new Wire(httpClient);  }
     var id = requestApproval(org, a, key);
     var alice = as("alice", org, "operator", "approver");
 
-    assertThat(post("/oversight/events/" + id + "/claim", alice, Map.of()).status()).isEqualTo(200);
+    var claim = post("/oversight/events/" + id + "/claim", alice, Map.of());
+    assertThat(claim.status()).as("someone who may not decide may not hold the event either").isEqualTo(403);
     var refused = post("/oversight/events/" + id + "/decision", alice, decision("APPROVE", "mine", false));
 
     assertThat(refused.status()).isEqualTo(403);
@@ -385,11 +386,15 @@ private Wire wire() {    return new Wire(httpClient);  }
     assertThat(post(base + "/releases/" + releaseId + "/approve", alice,
         new ContextLayerEndpoint.DecisionRequest("only annotates")).status()).isEqualTo(200);
 
-    var rows = awaitEvidence(org, Controls.RELEASE_APPROVAL, 1).get("evidence");
+    var all = awaitEvidence(org, Controls.RELEASE_APPROVAL, 3).get("evidence");
+    var rows = new java.util.ArrayList<JsonNode>();
+    all.forEach(n -> { if (n.get("eventType").asText().equals("HumanDecisionRecorded")) rows.add(n); });
     assertThat(rows).hasSize(1);
     assertThat(rows.get(0).get("actor").asText()).isEqualTo("alice");
     assertThat(rows.get(0).get("reasonCode").asText()).isEqualTo("reviewed");
     assertThat(rows.get(0).get("authority").asText()).contains("operator").contains("approver");
+    assertThat(all).filteredOn(n -> n.get("decision").asText().equals("REFUSED"))
+        .as("the request with no rationale and the one by someone other than the owner").hasSize(2);
     Awaitility.await().atMost(10, TimeUnit.SECONDS).untilAsserted(() ->
         assertThat(status(org, Controls.RELEASE_APPROVAL)).isEqualTo("SATISFIED"));
   }
@@ -403,12 +408,12 @@ private Wire wire() {    return new Wire(httpClient);  }
         new ContextLayerEndpoint.ActionRequest("notify.log", "x"));
     awaitLedger(blockedOrg, draft, key, "DENIED");
 
-    var blocked = awaitEvidence(blockedOrg, Controls.ACTION_POLICY, 1).get("evidence").get(0);
+    var blocked = awaitEvidence(blockedOrg, Controls.STAGE_GATED_ACTIONS, 1).get("evidence").get(0);
     assertThat(blocked.get("decision").asText()).isEqualTo("BLOCK");
     assertThat(blocked.get("runtimeConsequence").asText()).isEqualTo("BLOCKED");
     assertThat(blocked.get("evaluationMode").asText()).isEqualTo("ENFORCING");
     Awaitility.await().atMost(10, TimeUnit.SECONDS).untilAsserted(() ->
-        assertThat(status(blockedOrg, Controls.ACTION_POLICY)).isEqualTo("SATISFIED"));
+        assertThat(status(blockedOrg, Controls.STAGE_GATED_ACTIONS)).isEqualTo("SATISFIED"));
 
     var shadowOrg = newOrg();
     var shadow = assistant(shadowOrg, AssistantStage.SHADOW);
@@ -417,10 +422,10 @@ private Wire wire() {    return new Wire(httpClient);  }
         new ContextLayerEndpoint.ActionRequest("notify.log", "x"));
     awaitLedger(shadowOrg, shadow, shadowKey, "WOULD_DO");
 
-    var observed = awaitEvidence(shadowOrg, Controls.ACTION_POLICY, 1).get("evidence").get(0);
+    var observed = awaitEvidence(shadowOrg, Controls.STAGE_GATED_ACTIONS, 1).get("evidence").get(0);
     assertThat(observed.get("evaluationMode").asText()).isEqualTo("SHADOW");
     assertThat(observed.get("verdict").asText()).isEqualTo("inconclusive");
-    assertThat(status(shadowOrg, Controls.ACTION_POLICY)).isEqualTo("NO_EVIDENCE");
+    assertThat(status(shadowOrg, Controls.STAGE_GATED_ACTIONS)).isEqualTo("NO_EVIDENCE");
   }
 
   @Test
@@ -429,11 +434,11 @@ private Wire wire() {    return new Wire(httpClient);  }
     var a = assistant(org, AssistantStage.DRAFT);
     post("/orgs/" + org + "/assistants/" + a + "/actions/k1", as("alice", org, "operator"),
         new ContextLayerEndpoint.ActionRequest("notify.log", "x"));
-    awaitEvidence(org, Controls.ACTION_POLICY, 1);
+    awaitEvidence(org, Controls.STAGE_GATED_ACTIONS, 1);
 
     var other = newOrg();
 
-    assertThat(evidence(other, Controls.ACTION_POLICY).get("count").asInt()).isZero();
+    assertThat(evidence(other, Controls.STAGE_GATED_ACTIONS).get("count").asInt()).isZero();
   }
 
   @Test
@@ -446,12 +451,16 @@ private Wire wire() {    return new Wire(httpClient);  }
     assertThat(post(path, admin, Map.of("reason", " ")).status()).isEqualTo(400);
     assertThat(post(path, admin, Map.of("reason", "internal hosts only", "until", "2001-01-01T00:00:00Z")).status())
         .isEqualTo(400);
-    var waived = post(path, admin, Map.of("reason", "internal hosts only"));
+    assertThat(post(path, admin, Map.of("reason", "internal hosts only")).status()).as("a waiver must end").isEqualTo(400);
+    var waived = post(path, admin, Map.of("reason", "internal hosts only",
+        "until", java.time.Instant.now().plus(java.time.Duration.ofDays(30)).toString()));
     assertThat(waived.status()).isEqualTo(200);
     assertThat(waived.body().get("waived").asBoolean()).isTrue();
     assertThat(status(org, Controls.EGRESS)).isEqualTo("WAIVED");
     assertThat(post("/orgs/" + org + "/governance/controls/custom-nope/waiver", admin, Map.of("reason", "x")).status())
         .isEqualTo(404);
+    assertThat(awaitEvidence(org, Controls.CONTROL_WAIVER, 1).get("evidence").get(0).get("decision").asText())
+        .isEqualTo("APPROVE");
 
     assertThat(post(path + "/lift", admin, Map.of()).status()).isEqualTo(200);
     assertThat(status(org, Controls.EGRESS)).isEqualTo("NO_EVIDENCE");
@@ -541,7 +550,7 @@ private Wire wire() {    return new Wire(httpClient);  }
     var e = event(org, id);
 
     assertThat(e.get("state").asText()).isEqualTo("OPEN");
-    assertThat(e.get("ask").get("question").asText()).contains("one entity");
+    assertThat(e.get("ask").get("question").asText()).contains("the same thing");
     assertThat(e.get("routing").get("roles")).extracting(JsonNode::asText).containsExactly("reviewer");
     assertThat(e.get("minimumReviewSeconds").asInt()).isEqualTo(5);
     assertThat(e.toString()).doesNotContain("sam ortiz").doesNotContain("1990-05-05");
@@ -747,7 +756,7 @@ private Wire wire() {    return new Wire(httpClient);  }
     post("/orgs/" + org + "/assistants/" + a + "/actions/" + again, as("olga", org, "operator"),
         new ContextLayerEndpoint.ActionRequest("notify.log", "x"));
     awaitLedger(org, a, again, "SUCCEEDED");
-    var evidence = awaitEvidence(org, Controls.ACTION_POLICY, 1).get("evidence");
+    var evidence = awaitEvidence(org, Controls.HALT_ENFORCEMENT, 1).get("evidence");
     assertThat(evidence).extracting(n -> n.get("reasonCode").asText()).contains("playbook is halted");
   }
 

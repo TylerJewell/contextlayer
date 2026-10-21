@@ -12,8 +12,21 @@ public sealed interface IdentityEvent {
       double confidence,
       String source,
       String entityType,
-      String sourceRecordId)
-      implements IdentityEvent {}
+      String sourceRecordId,
+      String addedBy)
+      implements IdentityEvent {
+
+    /** @param addedBy the person who loaded the record, or empty when a source read or pushed it */
+    public MemberAdded {
+      addedBy = addedBy == null ? "" : addedBy;
+    }
+
+    public MemberAdded(
+        String orgId, String rule, String key, double confidence, String source, String entityType,
+        String sourceRecordId) {
+      this(orgId, rule, key, confidence, source, entityType, sourceRecordId, "");
+    }
+  }
 
   @TypeName("identity-member-unlinked")
   record MemberUnlinked(String source, String entityType, String sourceRecordId, String unlinkedBy, String reason)

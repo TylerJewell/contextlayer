@@ -18,6 +18,7 @@ import io.akka.contextlayer.application.Notifier;
 import io.akka.contextlayer.application.HttpSourceCaller;
 import io.akka.contextlayer.application.LoggingActionExecutor;
 import io.akka.contextlayer.application.Neo4jEntityStore;
+import io.akka.contextlayer.application.ReleaseGates;
 import io.akka.contextlayer.application.RoutingNotifier;
 import io.akka.contextlayer.application.SmtpNotifier;
 import io.akka.contextlayer.application.SecretProvider;
@@ -42,6 +43,9 @@ public class Bootstrap implements ServiceSetup {
   private final Map<Class<?>, Object> dependencies;
 
   public Bootstrap(Config config, HttpClientProvider httpClientProvider) {
+    // The release's at-deployment gates (custom-cl0056, custom-cl0057): it does not start with an invalid catalog,
+    // or with controls that are not the ones signed in the bundle in force.
+    ReleaseGates.enforce();
     this.config = config;
     var secrets = new ConfigSecretProvider(config);
     var hosts = new ArrayList<>(config.getStringList("contextlayer.egress.allowed-hosts"));

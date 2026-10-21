@@ -284,7 +284,7 @@ func (e *env) showAnswer(answer any) error {
 }
 
 func (e *env) cases() *cobra.Command {
-	group := &cobra.Command{Use: "cases", Short: "Cases opened by monitors"}
+	group := &cobra.Command{Use: "cases", Short: "Cases opened by watchers"}
 	var status string
 	list := &cobra.Command{
 		Use:   "list",
@@ -317,7 +317,7 @@ func (e *env) cases() *cobra.Command {
 			if e.emit(result) {
 				return nil
 			}
-			for _, row := range [][2]string{{"case", "caseId"}, {"monitor", "monitorId"}, {"key", "key"}, {"status", "status"}, {"routed to", "routeTo"}} {
+			for _, row := range [][2]string{{"case", "caseId"}, {"watcher", "monitorId"}, {"key", "key"}, {"status", "status"}, {"routed to", "routeTo"}} {
 				fmt.Fprintf(e.out, "%-10s %s\n", row[0]+":", field(result, row[1]))
 			}
 			for _, entry := range items(result, "timeline") {
@@ -389,7 +389,7 @@ func (e *env) controls() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			e.listing(result, "controls", "rowId", "name", "mechanism", "lifecycle")
+			e.listing(result, "controls", "rowId", "name", "mechanism", "flavor", "lifecycle")
 			return nil
 		},
 	}

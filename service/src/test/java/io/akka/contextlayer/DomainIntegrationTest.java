@@ -40,7 +40,7 @@ public class DomainIntegrationTest extends LayerTestBase {
   }
 
   private void define(String org, String name, List<String> types, List<String> roles, List<String> people) {
-    var response = send(org, ROOT, "admin", "/domains/" + name, new DomainEndpoint.DomainRequest(name + " data", types, roles, people));
+    var response = send(org, ROOT, "admin", "/domains/" + name, new DomainEndpoint.DomainRequest(name + " data", types, roles, people, "who reads " + name));
     assertThat(response.status().intValue()).as(response.body().utf8String()).isEqualTo(200);
   }
 
@@ -118,7 +118,7 @@ public class DomainIntegrationTest extends LayerTestBase {
     assertThat(send(org, "alice", "operator", "/questions", question).status().intValue())
         .as("the rule links domains, it does not grant them").isEqualTo(403);
 
-    send(org, ROOT, "admin", "/join-rules/revoke", new DomainEndpoint.JoinPair("wealth", "claims"));
+    send(org, ROOT, "admin", "/join-rules/revoke", new DomainEndpoint.JoinPair("wealth", "claims", "the triage ended"));
     assertThat(send(org, "carol", "operator", "/questions", question).status().intValue()).isEqualTo(403);
   }
 
@@ -154,7 +154,7 @@ public class DomainIntegrationTest extends LayerTestBase {
       assertThat(evidence.get("evidence")).anySatisfy(e -> {
         assertThat(e.get("decision").asText()).isEqualTo("BLOCK");
         assertThat(e.get("actor").asText()).isEqualTo("alice");
-        assertThat(e.get("authority").asText()).contains("monitor old-claims");
+        assertThat(e.get("authority").asText()).contains("watcher old-claims");
       });
     });
     assertThat(get("/orgs/" + org + "/monitors/old-claims", MonitorEndpoint.MonitorResponse.class).runCount())
@@ -165,10 +165,10 @@ public class DomainIntegrationTest extends LayerTestBase {
   public void aTypeCannotBeInTwoDomainsAndAnInvalidDomainIsRefused() {
     var org = governed();
 
-    var clash = send(org, ROOT, "admin", "/domains/other", new DomainEndpoint.DomainRequest("", List.of("Claim"), List.of("viewer"), List.of()));
+    var clash = send(org, ROOT, "admin", "/domains/other", new DomainEndpoint.DomainRequest("", List.of("Claim"), List.of("viewer"), List.of(), "try"));
     assertThat(clash.status().intValue()).isEqualTo(400);
     assertThat(clash.body().utf8String()).contains("already in the claims");
-    var bad = send(org, ROOT, "admin", "/domains/other", new DomainEndpoint.DomainRequest("", List.of(), List.of("boss"), List.of()));
+    var bad = send(org, ROOT, "admin", "/domains/other", new DomainEndpoint.DomainRequest("", List.of(), List.of("boss"), List.of(), "try"));
     assertThat(bad.status().intValue()).isEqualTo(400);
   }
 
@@ -180,8 +180,8 @@ public class DomainIntegrationTest extends LayerTestBase {
     assertThat(listed.governed()).isTrue();
     assertThat(listed.domains()).extracting(DomainEndpoint.DomainView::name).containsExactly("claims", "wealth");
 
-    assertThat(send(org, "alice", "operator", "/domains/wealth/remove", Map.of()).status().intValue()).isEqualTo(403);
-    var after = send(org, ROOT, "admin", "/domains/wealth/remove", Map.of());
+    assertThat(send(org, "alice", "operator", "/domains/wealth/remove", Map.of("rationale", "no longer needed")).status().intValue()).isEqualTo(403);
+    var after = send(org, ROOT, "admin", "/domains/wealth/remove", Map.of("rationale", "no longer needed"));
     assertThat(after.status().intValue()).isEqualTo(200);
     assertThat(get("/orgs/" + org + "/domains", DomainEndpoint.DomainList.class).domains()).extracting(DomainEndpoint.DomainView::name)
         .containsExactly("claims");

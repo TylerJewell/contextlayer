@@ -60,5 +60,5 @@ What they show:
   chain can order batches of records instead of one at a time.
 - **Concurrent questions and writes together.**
 - **Several service instances** against one database.
-- **Identity clusters** at scale. Each is an entity, and a record offers its keys to the clusters on every write.
+- **Links** at scale. Each is an entity, and a record offers its keys to the clusters on every write.
 - **A real network** between the service and the database, which adds to every number above.

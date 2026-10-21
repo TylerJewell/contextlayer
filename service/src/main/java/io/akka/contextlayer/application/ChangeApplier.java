@@ -7,6 +7,7 @@ import io.akka.contextlayer.domain.EntityChange;
 import io.akka.contextlayer.domain.PackDefinition;
 import io.akka.contextlayer.domain.RefreshStatus;
 import io.akka.contextlayer.domain.ScopedId;
+import io.akka.contextlayer.governance.Controls;
 import java.util.List;
 import java.util.function.LongSupplier;
 
@@ -45,7 +46,10 @@ public class ChangeApplier {
 
   public Outcome apply(String orgId, EntityChange change) {
     var found = lookup(orgId, change.entityType());
-    if (found.provider() == null) return found.anyStreamed() ? Outcome.NO_CONNECTOR : Outcome.NOT_READY;
+    if (found.provider() == null) {
+      recordIntake(orgId, change.entityType(), false, "no active connector streams " + change.entityType());
+      return found.anyStreamed() ? Outcome.NO_CONNECTOR : Outcome.NOT_READY;
+    }
     var provider = found.provider();
     long now = nowMillis.getAsLong();
     var applied = switch (change) {
@@ -60,11 +64,28 @@ public class ChangeApplier {
         .method(RefreshStatusEntity::record)
         .invoke(RefreshStatus.of(orgId, provider.pack().name(), change.entityType(), RefreshStatus.Outcome.OK, now, 0, 0,
             provider.pack().activeHash(), List.of()));
-    if (applied != EntityStore.Applied.APPLIED) return Outcome.ALREADY_HELD;
+    if (applied != EntityStore.Applied.APPLIED) {
+      if (!(change instanceof EntityChange.Heartbeat)) {
+        recordIntake(orgId, change.entityType(), false, "no newer than the version held");
+      }
+      return Outcome.ALREADY_HELD;
+    }
+    recordIntake(orgId, change.entityType(), true, "from an active connector that streams it");
     ChangeFeed.changed(componentClient, timers, orgId, new ChangeFeedEntity.ChangeNotice(provider.pack().name(),
         change.entityType(), change instanceof EntityChange.Upserted u ? u.entityId() : ((EntityChange.Deleted) change).entityId(),
         change instanceof EntityChange.Upserted ? "upsert" : "delete", now));
     return Outcome.APPLIED;
+  }
+
+  /**
+   * Records the intake guardrail (custom-cl0031) once an hour for each type and outcome. A stream is replayed from
+   * its start whenever the consumer starts again, so a record per change would repeat every held change each time.
+   */
+  private void recordIntake(String orgId, String entityType, boolean accepted, String reason) {
+    var key = entityType + "~" + (accepted ? "accepted" : reason);
+    if (!Sampled.firstThisHour(orgId + "|" + Controls.GOVERNED_INTAKE + "|" + key)) return;
+    new Verdicts(componentClient).guardrail(orgId, Controls.GOVERNED_INTAKE, Sampled.hourKey(key), accepted, reason,
+        "pushed " + entityType, "system:intake");
   }
 
   private record Provider(ConnectorPack pack, PackDefinition.EntityMapping entity) {}

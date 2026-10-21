@@ -36,7 +36,7 @@ What a client of the context service can rely on. Every route is under `/v1/cont
 | `GET /approvals` | read | | actions waiting for a person |
 | `POST /assistants/{id}/actions/{key}/approve` | approve | `{rationale}` | action |
 | `POST /assistants/{id}/actions/{key}/reject` | approve | `{reason}` | action |
-| `POST /assistants/{id}/actions/{key}/resolve` | review | `{succeeded, note}` | action |
+| `POST /assistants/{id}/actions/{key}/resolve` | review | `{succeeded, note}`: decides the unknown outcome's human event; not by the requester | action |
 
 An action sent to a system ends in `SUCCEEDED`, `FAILED` (refused or unformable) or `OUTCOME_UNKNOWN` (a server error,
 timeout or cut connection after sending). An unknown outcome is never retried; a person resolves it. Whoever requested an
@@ -49,7 +49,7 @@ action cannot approve it.
 | `GET /connectors` | read | | each connector with the state of its last read of every type |
 | `POST /connectors/{name}/versions` | operate | pack | `{hash}` |
 | `POST /connectors/{name}/versions/{hash}/activate` | approve | `{mode: READ_ONLY\|LIVE, rationale}` | `{name, mode, activeHash, versions}` |
-| `POST /connectors/{name}/deactivate` | approve | | connector |
+| `POST /connectors/{name}/deactivate` | approve | `{rationale}` | connector |
 | `GET /connectors/{name}` | read | | connector |
 | `POST /connectors/{name}/entities/{type}/refresh` | operate | | `{pack, entityType, outcome, refreshedAt, stored, skippedWithoutId, warnings}` |
 | `GET /connectors/{name}/entities/{type}/refresh-status` | read | | the same |
@@ -58,7 +58,7 @@ A pack is `{name, version, source:{kind, ref}, credentialRef, entities:[...], ac
 `relations:[{name, field, targetType}]`, relationships its records have to records of another type, named in questions (see Questions).
 `source.kind` is `openapi`,
 `mcp`, `database`, `file` or `stream`; a stream needs no `credentialRef`. An entity is `{type, operation, recordsPath,
-idField, identityAttributes, filters, freshness:{policy, ttlMinutes}, paging, rate}`.
+idField, identityAttributes (the keys records match on, such as email or sku), filters, freshness:{policy, ttlMinutes}, paging, rate}`.
 
 | `freshness.policy` | How data gets in | `ttlMinutes` |
 |---|---|---|
@@ -67,7 +67,7 @@ idField, identityAttributes, filters, freshness:{policy, ttlMinutes}, paging, ra
 | `MAINTAINED` | read on a schedule that starts when the connector goes live | how often |
 | `STREAMED` | the source pushes changes; with no `operation`, nothing is read | longest silence before stale |
 
-## Records and identity
+## Records and links (routes under `/identity`)
 
 | Route | Permission | Body | Answer |
 |---|---|---|---|
@@ -88,9 +88,9 @@ real-world party. With `via` it follows the named relationship: `direction` `OUT
 
 | Route | Permission | Body | Answer |
 |---|---|---|---|
-| `POST /questions` | operate | question | `{rows, unconfirmedLeftOut, sources:[{pack, entityType, freshness, lastOutcome, dataAsOf, warnings}]}` |
-| `POST /questions/draft` | operate | `{text}` | `{question, explanation, clarification, problems}` |
-| `POST /streams/watch` | operate | question | stream of `{event: "snapshot", rows, total, sources}` then `{event: "changed", added, removed, total}` |
+| `POST /questions` | operate | question, with `draftId` when it was drafted | `{rows, unconfirmedLeftOut, sources:[{pack, entityType, freshness, lastOutcome, dataAsOf, warnings}]}` |
+| `POST /questions/draft` | operate | `{text}` | `{question (with its draftId), explanation, clarification, problems}` |
+| `POST /streams/watch` | operate | question, to follow | stream of `{event: "snapshot", rows, total, sources}` then `{event: "changed", added, removed, total}` |
 
 `freshness` in `sources` is `REFRESHED_NOW`, `WITHIN_POLICY`, `MAINTAINED`, `STREAMED`, `STALE` or `UNAVAILABLE`. A draft is
 never run by the service; `question` is null when the model asked for clarification or no valid draft was reached.
@@ -106,7 +106,7 @@ never run by the service; `question` is null when the model asked for clarificat
 than the version held. At most 500 changes a call. Another Akka service in the project can publish the same changes as the
 service stream `entity_changes` instead.
 
-## Monitors and cases
+## Watchers and cases (routes under `/monitors`)
 
 | Route | Permission | Body | Answer |
 |---|---|---|---|
@@ -116,10 +116,10 @@ service stream `entity_changes` instead.
 | `POST /monitors/{id}/enable`, `/disable`, `/run` | operate | | monitor, or `{runId, status}` |
 | `GET /cases`, `GET /cases/status/{status}` | read | | `{items:[{caseId, monitorId, key, status, routeTo, openedAt}]}` |
 | `GET /cases/{id}` | read | | case with `evidence`, `sourceNotes` and `timeline:[{at, actor, text}]` |
-| `POST /cases/{id}/resolve`, `/dismiss` | review | `{note}` | case |
+| `POST /cases/{id}/resolve`, `/dismiss` | review | `{note}`, required | case |
 | `POST /cases/{id}/annotate` | operate | `{text}` | case |
 
-A monitor is a standing question whose output is a case. With `onChange` it also runs within about five seconds of a change to
+A watcher is a standing question whose output is a case. With `onChange` it also runs within about five seconds of a change to
 data it reads; the interval then only makes sure a run happens when no change is seen.
 
 ## Notifications
@@ -160,7 +160,7 @@ A halt is one approver; a restart needs two. Reopen, flags and standing decision
 | `POST /governance/controls/{id}/acceptance/withdraw` | approve | |
 | `POST /governance/controls/{id}/assertion` | administer | `{evidenceKind, expects:[{name, maxAgeDays}], rationale}` |
 | `POST /governance/controls/{id}/documents` | administer | `{name, ref, asOf}` |
-| `POST /governance/controls/{id}/waiver`, `/waiver/lift` | administer | `{reason, until}` |
+| `POST /governance/controls/{id}/waiver`, `/waiver/lift` | administer | `{reason, until}`; `until` is required, within 365 days |
 | `GET /governance/integrity?from=&limit=` | read | `{scheme, count, head, from, checked, intact, problems, next}` |
 | `POST /governance/documents/{name}` | administer | `{kind, ref, asOf, content}`: registers a version; `kind` is `procedure`, `policy`, `test-report`, `mapping` or `other`; only the digest of `content` is kept |
 | `GET /governance/documents`, `GET /governance/documents/{name}` | read | the newest version of each, or every version of one |
@@ -181,10 +181,10 @@ authors. `gaps` is `{unaccepted, acceptedWithoutAssertion, assertedWithoutEviden
 | Route | Permission | Body | Answer |
 |---|---|---|---|
 | `GET /domains` | read | | `{governed, domains:[{name, description, entityTypes, readerRoles, readerPeople, changedBy, changedAt}], joins:[{a, b, approvedBy, rationale, at}]}` |
-| `POST /domains/{name}` | administer | `{description, entityTypes, readerRoles, readerPeople}` | domain |
-| `POST /domains/{name}/remove` | administer | | list |
+| `POST /domains/{name}` | administer | `{description, entityTypes, readerRoles, readerPeople, rationale}` | domain |
+| `POST /domains/{name}/remove` | administer | `{rationale}` | list |
 | `POST /join-rules` | approve | `{a, b, rationale}` | list |
-| `POST /join-rules/revoke` | administer | `{a, b}` | list |
+| `POST /join-rules/revoke` | administer | `{a, b, rationale}` | list |
 
 With no domains every question is allowed. With one, a question reads only types in a domain its asker is granted, and links two
 domains only under an approved join rule. A refusal is a 403 listing every reason. The approver of a join rule is someone other

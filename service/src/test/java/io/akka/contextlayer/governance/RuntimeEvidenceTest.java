@@ -69,8 +69,8 @@ class RuntimeEvidenceTest {
   @Test
   void aHaltASanitizationAndAnAccessDecisionAreOfTheirOwnClasses() {
     var halt = evidence(Controls.HALT, "HumanDecisionRecorded", "STATE_TRANSITION", "APPROVE", "CONTINUED", "dan");
-    var mask = evidence(Controls.MASK_PERSONAL_DATA, "GuardrailDecisionRecorded", "BEFORE_LLM_CALL", "PASS", "MASKED", "system:masker");
-    var access = evidence(Controls.DOMAIN_ACCESS, "ControlEvaluationRecorded", "WORKFLOW_STEP", "BLOCK", "BLOCKED", "alice");
+    var mask = evidence(Controls.MASK_PERSONAL_DATA, "SanitizerApplied", "BEFORE_LLM_CALL", "PASS", "MASKED", "system:masker");
+    var access = evidence(Controls.DOMAIN_ACCESS, "GuardrailDecisionRecorded", "BEFORE_TOOL_CALL", "BLOCK", "BLOCKED", "alice");
 
     var ttl = export(List.of(halt, mask, access), Map.of());
 

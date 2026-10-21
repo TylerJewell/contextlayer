@@ -13,10 +13,14 @@ from __future__ import annotations
 
 import base64
 import json
+from datetime import datetime, timedelta, timezone
 from collections.abc import AsyncIterator
 from typing import Any, Protocol
 
 import httpx
+
+# How long a waiver granted from the console lasts; the service allows at most 365 days.
+WAIVER_DAYS = 90
 
 
 class ApiError(Exception):
@@ -286,7 +290,9 @@ class HttpApi:
         return await self._send("GET", "/governance/compliance")
 
     async def waive(self, control_id: str, reason: str) -> dict[str, Any]:
-        return await self._send("POST", f"/governance/controls/{control_id}/waiver", {"reason": reason})
+        """A waiver must end; the console grants one for WAIVER_DAYS, and it can be lifted sooner."""
+        until = (datetime.now(timezone.utc) + timedelta(days=WAIVER_DAYS)).isoformat().replace("+00:00", "Z")
+        return await self._send("POST", f"/governance/controls/{control_id}/waiver", {"reason": reason, "until": until})
 
     async def lift_waiver(self, control_id: str) -> dict[str, Any]:
         return await self._send("POST", f"/governance/controls/{control_id}/waiver/lift", {})

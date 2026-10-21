@@ -30,7 +30,17 @@ import java.util.Map;
 @HttpEndpoint("/v1/context")
 public class DomainEndpoint extends PrincipalEndpoint {
 
-  public record DomainRequest(String description, List<String> entityTypes, List<String> readerRoles, List<String> readerPeople) {}
+  /** @param rationale why, recorded with the administrator's decision (control custom-cl0042) */
+  public record DomainRequest(
+      String description, List<String> entityTypes, List<String> readerRoles, List<String> readerPeople,
+      String rationale) {
+
+    public DomainRequest(String description, List<String> entityTypes, List<String> readerRoles, List<String> readerPeople) {
+      this(description, entityTypes, readerRoles, readerPeople, null);
+    }
+  }
+
+  public record ReasonRequest(String rationale) {}
 
   public record DomainView(
       String name, String description, List<String> entityTypes, List<String> readerRoles, List<String> readerPeople,
@@ -43,12 +53,17 @@ public class DomainEndpoint extends PrincipalEndpoint {
 
   public record JoinRequest(String a, String b, String rationale) {}
 
-  public record JoinPair(String a, String b) {}
+  public record JoinPair(String a, String b, String rationale) {
+
+    public JoinPair(String a, String b) {
+      this(a, b, null);
+    }
+  }
 
   private final ComponentClient componentClient;
 
   public DomainEndpoint(ComponentClient componentClient, Authz authz, ProjectResolver projects) {
-    super(authz, projects);
+    super(authz, projects, componentClient);
     this.componentClient = componentClient;
   }
 
@@ -62,17 +77,23 @@ public class DomainEndpoint extends PrincipalEndpoint {
   public DomainView set(String name, DomainRequest body) {
     var caller = authorize(Permission.ADMINISTER);
     required(body);
-    var domain = new DataDomain(name, body.description(), body.entityTypes(), body.readerRoles(), body.readerPeople(),
-        caller.subject(), System.currentTimeMillis());
-    var config = call(() -> componentClient.forEventSourcedEntity(project()).method(DomainConfigEntity::set).invoke(domain));
+    var domain = call(() -> new DataDomain(name, body.description(), body.entityTypes(), body.readerRoles(),
+        body.readerPeople(), caller.subject(), System.currentTimeMillis()));
+    var eventId = decide(caller, "set", name, "Set data domain " + name + " to " + String.join(", ", domain.entityTypes()),
+        Map.of("domain", name), body.rationale());
+    var config = GateDecisions.applying(componentClient, eventId, "domain set", () -> call(() ->
+        componentClient.forEventSourcedEntity(project()).method(DomainConfigEntity::set).invoke(domain)));
     return toView(config.domains().get(name));
   }
 
   @Post("/domains/{name}/remove")
-  public DomainList remove(String name) {
+  public DomainList remove(String name, ReasonRequest body) {
     var caller = authorize(Permission.ADMINISTER);
-    var config = call(() -> componentClient.forEventSourcedEntity(project()).method(DomainConfigEntity::remove)
-        .invoke(new DomainConfigEntity.RemoveDomain(name, caller.subject(), System.currentTimeMillis())));
+    var eventId = decide(caller, "remove", name, "Remove data domain " + name, Map.of("domain", name),
+        body == null ? null : body.rationale());
+    var config = GateDecisions.applying(componentClient, eventId, "domain removed", () -> call(() ->
+        componentClient.forEventSourcedEntity(project()).method(DomainConfigEntity::remove)
+            .invoke(new DomainConfigEntity.RemoveDomain(name, caller.subject(), System.currentTimeMillis()))));
     return toList(config);
   }
 
@@ -92,7 +113,9 @@ public class DomainEndpoint extends PrincipalEndpoint {
     if (a == null || b == null) throw HttpException.badRequest("both data domains have to exist");
     for (var domain : List.of(a, b)) {
       if (domain.changedBy().equals(caller.subject())) {
-        throw HttpException.forbidden("you last changed the " + domain.name() + " data domain, so someone else has to approve linking it");
+        var reason = "you last changed the " + domain.name() + " data domain, so someone else has to approve linking it";
+        verdicts().humanRefusal(project(), Controls.DOMAIN_JOIN, body.a() + " " + body.b(), caller.subject(), reason);
+        throw HttpException.forbidden(reason);
       }
     }
     long now = System.currentTimeMillis();
@@ -113,9 +136,23 @@ public class DomainEndpoint extends PrincipalEndpoint {
     var caller = authorize(Permission.ADMINISTER);
     required(body);
     if (body.a() == null || body.b() == null) throw HttpException.badRequest("name the two data domains");
-    var config = call(() -> componentClient.forEventSourcedEntity(project()).method(DomainConfigEntity::revokeJoin)
-        .invoke(new DomainConfigEntity.RevokeJoin(body.a(), body.b(), caller.subject(), System.currentTimeMillis())));
+    var eventId = decide(caller, "revoke", body.a() + "-" + body.b(),
+        "Stop questions linking the " + body.a() + " and " + body.b() + " data domains", Map.of("a", body.a(), "b", body.b()),
+        body.rationale());
+    var config = GateDecisions.applying(componentClient, eventId, "join rule revoked", () -> call(() ->
+        componentClient.forEventSourcedEntity(project()).method(DomainConfigEntity::revokeJoin)
+            .invoke(new DomainConfigEntity.RevokeJoin(body.a(), body.b(), caller.subject(), System.currentTimeMillis()))));
     return toList(config);
+  }
+
+  /** An administrator's change to the data domains, recorded as a decision under custom-cl0042 before it is made. */
+  private String decide(
+      io.akka.contextlayer.auth.Caller caller, String verb, String target, String summary, Map<String, String> detail,
+      String rationale) {
+    long now = System.currentTimeMillis();
+    return GateDecisions.decide(componentClient, caller, project(), Controls.DOMAIN_ADMINISTRATION,
+        call(() -> ScopedId.of(project(), "he", "domain", verb, ScopedId.safe(target), String.valueOf(now))), "change",
+        summary, "", detail, summary + "?", "system:domains", "APPROVE", rationale);
   }
 
   private static DomainList toList(DomainConfig config) {

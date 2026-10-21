@@ -2,7 +2,7 @@
 
 A governed context layer on the Akka SDK: staged playbooks with approved releases, an
 idempotent action ledger with human approval, connector packs for sources, a graph entity
-store, cross-source identity linking with a review queue, and structured questions that report how
+store, cross-source links (the same person or thing in two sources) with a review queue, and structured questions that report how
 fresh each source was. Built from the requirements and design in
 `C:\Users\tyler\context\clean-room\implementer\`.
 
@@ -14,7 +14,7 @@ Port: 9162 (registered in `C:\Users\tyler\CLAUDE.md`).
 |---|---|
 | Playbooks, releases, Draft/Shadow/Live (AST-01..03); the code calls a playbook an assistant | `AssistantEntity`, `domain/Assistant` |
 | Risk classes, approvals, expiry, unknown outcomes (AST-04..06) | `ActionLedgerEntity`, `ActionWorkflow`, `domain/ActionPolicy`, `ActionCatalog` |
-| Identity links, confidence, review, reversal (ENT-02..04) | `IdentityEntity`, `domain/IdentityRules`, `IdentityCluster`, `IdentityGraphConsumer` |
+| Links, confidence, review, reversal (ENT-02..04); the code calls a link an identity cluster | `IdentityEntity`, `domain/IdentityRules`, `IdentityCluster`, `IdentityGraphConsumer` |
 | Audit trail (AUD-01..02) | Event journal of every entity; `ActionLedgerView`, `IdentityReviewView` |
 | Organization isolation (ISO-01) | `ScopedId` prefixes every entity id; every graph statement carries the organization id |
 | Single outbound path (OPS-04) | `ActionExecutor` for actions, `HttpSourceCaller` for reads, `EgressPolicy` allow-list |
@@ -22,7 +22,7 @@ Port: 9162 (registered in `C:\Users\tyler\CLAUDE.md`).
 | Bounded source reads, credentials by reference (CON-02, CON-03, QRY-05) | `HttpSourceCaller`, `SecretProvider`, `CallRateLimiter` |
 | Entity store (ENT-01, ENT-05) | `EntityStore`, `Neo4jEntityStore`, `RecordFlattener` |
 | Structured questions with a freshness report (QRY-01..05) | `domain/StructuredQuestion`, `Neo4jQueryCompiler`, `QuestionService`, `EntityRefresher`, `RefreshStatusEntity` |
-| Monitors, cases, case timeline (MON-01..03) | `MonitorEntity`, `MonitorRunWorkflow`, `MonitorTimedAction`, `CaseEntity`, `CaseView`; a run that could not read every source never closes a case |
+| Watchers, cases, case timeline (MON-01..03); the API and the code call a watcher a monitor | `MonitorEntity`, `MonitorRunWorkflow`, `MonitorTimedAction`, `CaseEntity`, `CaseView`; a run that could not read every source never closes a case |
 | Model step with declared outputs and field allow-list (AI-01..03) | `ClassifierAgent`; `Playbook` classify steps; an answer outside the allowed labels fails the step |
 | A playbook's steps as validated data, no code (DESIGN D-05) | `domain/Playbook`, `PlaybookWorkflow`; releases are validated as playbooks when added |
 
@@ -55,7 +55,7 @@ may do is decided by the platform rule in `service-auth`: a deployment that know
 platform sets `KALIX_META_PROJECT`) admits only callers who hold access to that project, and a local
 run admits any authenticated caller. The service asks for five permissions, `project.governedContext.`
 then `read`, `operate`, `review`, `approve` or `administer`, and turns the ones a caller holds into a role
-used to route human events: `viewer` reads, `operator` asks and builds, `reviewer` judges identity links
+used to route human events: `viewer` reads, `operator` asks and builds, `reviewer` judges links
 and cases, `approver` authorizes (actions, releases, stages, packs), `admin` does everything and waives
 controls. A subject starting `system:` is refused, because that names the service's own parts.
 Local runs and tests accept unsigned (`alg: none`) tokens.
@@ -63,28 +63,37 @@ Local runs and tests accept unsigned (`alg: none`) tokens.
 A deployment serves one project, and everything it stores belongs to that project. All routes are
 under `/v1/context`.
 
-- `governance/controls.yaml` is the control catalog: stable `row_id`s, the event that proves each,
-  and for human controls the policy (roles, SLA, rationale, minimum review time, escalation chain).
-  Its digest is stamped on every evidence record. `GET /v1/context/governance/controls`.
+- `governance/controls.yaml` is the control catalog: 57 controls, each with a stable `row_id`, one of Verify's five
+  mechanisms and one of its flavors, the event that proves it, and the block its mechanism needs (a guardrail's hook,
+  a sanitizer's, eval's or gate's configuration, a human control's policy: roles, SLA, rationale, minimum review
+  time, escalation chain). Every enforcement point records a verdict under its control's id, a refusal as well as a
+  pass. Its digest is stamped on every evidence record. `GET /v1/context/governance/controls`.
+  `governance/pack/` is the same controls as a Verify control pack, generated from it.
 - Risky action approvals are human events: raised when an action needs a person, claimed (which is
   when review time starts), decided with a required rationale by someone other than the requester,
-  escalated or sent back. Identity reviews are the same: a cluster that needs a person raises an event
-  (keyed by the set of records, so a changed cluster closes the old question and asks a new one), the
-  reviewer opens it (`POST .../identity/open`), then confirms or rejects, and the link changes when the
-  decision is applied. An unanswered review times out after its SLA and leaves the link unconfirmed.
-  Releases, stages and pack activations are recorded as decided events under the caller's roles. Decisions below the minimum review time are flagged.
+  escalated or sent back. Link reviews are the same: every set of two or more matching records raises an event,
+  however strong its match (keyed by the set of records, so a changed cluster closes the old question and asks a
+  new one), the reviewer opens it (`POST .../identity/open`), then confirms or rejects, and the link changes when the
+  decision is applied. Nobody who loaded one of the records may confirm it. An unanswered review times out after its
+  SLA and leaves the link unconfirmed. An action whose outcome is unknown raises an event for a reviewer who did not
+  request it (`POST .../actions/{key}/resolve` decides it), and a playbook step that fails after its retries is
+  handed to an operator as an event to acknowledge.
+  Releases, stages, pack activations and deactivations, domain changes and join rules, case resolutions, waivers,
+  acceptances and assertions are recorded as decided events under the caller's roles, each under its own control,
+  with a reason. A request a control's rules turn down (the wrong role, the proposer deciding, no rationale) is
+  recorded under that control too. Decisions below the minimum review time are flagged.
 - `/v1/context/oversight/events...` serves the console's human events contract. `reviewer.rehearsal` is recorded as a rehearsal and
   changes nothing. Reopen, flags and standing decisions answer 501: a closed event was already acted on
   (raise a new one), and a standing approval would bypass the four-eyes rule.
-- An event's deadline can be extended once, by at most seven days, with a reason. Identity reviews
+- An event's deadline can be extended once, by at most seven days, with a reason. Link reviews
   that confirmed links already cover are left out of the oversight queue, as in the review queue.
 - Halts: `POST /oversight/halts` raises an event to halt a playbook (one approver decides) or to
   restart it (two different approvers). While halted its actions are refused, playbooks stop, and an
   action approved after the halt does not run. `GET /oversight/halts` lists each playbook's state.
 - Evidence is derived from what happened and is append-only. `GET .../governance/evidence` exports it;
   `GET .../governance/compliance` reports per control: satisfied, failing, unresolved, stale,
-  no-evidence or waived (admin only, `POST .../controls/{id}/waiver`). Shadow, advisory and test
-  records never count as proof.
+  no-evidence or waived (admin only, `POST .../controls/{id}/waiver`, with an end no more than 365 days away). Shadow,
+  advisory and test records never count as proof.
 - Model calls are governed by the Akka runtime, each piece declared in `application.conf` under the control it
   implements (`control-id`):
   - the predefined sanitizers mask email, phone, card, IBAN and IP values for every agent (`custom-cl0001`); the
@@ -93,14 +102,16 @@ under `/v1/context`.
   - `QuestionShapeGuardrail` refuses a call to the question model whose data block is more than the shape of the data
     (`custom-cl0013`);
   - `LabelAllowedEvaluator` and `ComplianceWordingEvaluator` judge every classifier and compliance-summary interaction
-    from the runtime's ledger and record the verdict under `custom-cl0002` and `custom-cl0016`. The service applies the
-    same checks before it acts on an answer; the evaluators are the runtime's own record of them.
+    from the runtime's ledger and record the verdict under `custom-cl0050` and `custom-cl0051`, and copy it into the
+    project's evidence. The service applies the same rules before it acts on an answer, as the guardrails
+    `custom-cl0002` and `custom-cl0016`.
 - Every model call's evidence and case-timeline entry carries `ledger:<interaction id>`, and
   `GET /v1/context/governance/interactions/{id}` returns what the model was sent and said and the runtime's verdicts.
 - `governance/controls.yaml` is also the system's controls draft for the Akka local console, where its controls are
-  decided and signed as bundles into `governance/signed/` (see the root `README.md`). The service checks the bundle in
-  force, verifying its hashes and Ed25519 sign-offs, and the compliance report says for each control whether the
-  service runs it exactly as signed.
+  decided and signed as bundles into `governance/signed/` (see the root `README.md`). When a release starts it checks
+  its catalog and the bundle in force, verifying its hashes and Ed25519 sign-offs, and does not start when a control
+  is not as signed (gates `custom-cl0056` and `custom-cl0057`); with no bundle signed yet that gate does not apply. The
+  compliance report says for each control whether the service runs it exactly as signed.
 
 Not built: exit conditions (not wanted), ledger-over-HTTP evidence from the runtime, flags on outputs.
 
@@ -113,7 +124,7 @@ Not built: exit conditions (not wanted), ledger-over-HTTP evidence from the runt
   timeout or a cut connection after sending is `OUTCOME_UNKNOWN`, which is never retried and goes to a
   person. The host must be on the egress list. Only a LIVE connector offers actions.
 - **Teams are told.** `POST /v1/context/routes/{name}` (admin) sets where a route's messages go: a JSON
-  post, or a Slack incoming webhook. A monitor's `routeTo` is a route name, and approvals go to
+  post, or a Slack incoming webhook. A watcher's `routeTo` is a route name, and approvals go to
   `role:<role>`. A new case, an approval that needs someone and an escalation each send one message
   naming what and where to look, never a record's contents, with personal data masked. Every
   attempt is recorded (`GET /v1/context/notifications`): delivered, failed with why, or no route set
@@ -133,8 +144,9 @@ returns a question to read, not an answer: the model is shown the shape of the d
 kinds, and the categories of fields that hold a handful of them) and never a record, its draft is
 checked against that shape and the question rules (once more with the reasons if it fails), and a
 person runs it. A request the data cannot answer, or that is ambiguous, comes back as a question
-for the person. Each draft is recorded as evidence for control `custom-cl0013`. Quality with a real
-model: `docs/MODEL-EVAL.md`.
+for the person. What the model is shown is recorded under `custom-cl0013` (shape only), the check of its draft under
+`custom-cl0023`, and the draft carries a `draftId`: sending it back with the question when a person runs it records
+that a person ran it (`custom-cl0043`). Quality with a real model: `docs/MODEL-EVAL.md`.
 
 ## Freshness and live data
 
@@ -162,23 +174,26 @@ delete, heartbeat, each with the source's own version number so a late or repeat
 - **Any other system** posts to `POST /v1/context/streams/changes` with an `operate` token, such as a webhook
   from a third party.
 
-**Watching.** `GET /v1/context/streams/changes?types=Claim` is a server-sent event stream that tells a
-watcher as records change. `POST /v1/context/streams/watch` with a question is a standing question: the answer
-first, then the rows added to it and removed from it as the data it reads changes. A monitor is the same thing
-with a case as its output: set `onChange` on a monitor and it also runs shortly after the data it reads changes
+**Following.** `GET /v1/context/streams/changes?types=Claim` is a server-sent event stream that tells a
+client as records change. `POST /v1/context/streams/watch` with a question follows it: the answer
+first, then the rows added to it and removed from it as the data it reads changes. A watcher is the same thing
+with a case as its output: set `onChange` on a watcher and it also runs shortly after the data it reads changes
 (its interval then only makes sure a run happens when no change is seen). Notices go to whoever is connected at
-that moment and are not replayed, so a watcher that reconnects gets the whole answer again.
+that moment and are not replayed, so a client that reconnects gets the whole answer again.
 
 ## Relationships
 
-Records link in two ways. A **link by identity** finds records of different sources that are the same real-world party,
-through links a person has confirmed. A **relationship** is one a source declares between its own record types: the entity
+Records link in two ways. A **link** joins records of different sources that are the same person or thing,
+through links a person has confirmed. Each entity in a connector pack declares the keys its records match on
+(`identityAttributes`, with `key=field` to read a key from another field): `email`, and `name` with `dob`, follow the rules
+for a person, and any other key, such as `sku` or `gtin`, links records whose values are equal once trimmed and
+case-folded, so the same SKU in two ERPs is one link to review. A **relationship** is one a source declares between its own record types: the entity
 in a connector pack lists `relations`, each a name, the field that holds the id (or a list of ids) of the records it points at,
 and the target type. For example a claim can declare `HAS_ACCOUNT` from its `accountId` field to `Account`.
 
 A question follows a relationship by naming it in a link: `{"entityType": "Account", "via": "HAS_ACCOUNT", "direction": "OUT",
 "depth": 1, "where": [...]}`. `direction` is `OUT` (as declared) or `IN` (backwards), and `depth` is one to three steps. Without `via`
-the link is by identity. A question can mix both, and every type it touches is checked against the asker's data domains.
+the question follows links. A question can mix both, and every type it touches is checked against the asker's data domains.
 
 Records can arrive in any order. A relationship to a record not held yet is kept and joined when the record arrives, and one
 whose target is deleted is kept so the target can come back. A changed field moves the relationship. The schema shown to the
@@ -254,13 +269,15 @@ A project with no domains allows every question. Once it has one:
 - A question that links records of two domains needs an approved join rule for that pair
   (`POST /v1/context/join-rules`). The approval is a decision under control `custom-cl0014`, made by someone
   other than whoever last changed either domain. The rule links the domains; it does not grant reading either.
-- Asking in words shows the model only the types the asker may read. Standing questions, the change feed and
-  monitors apply the same rules when they are set up or opened.
-- Every decision is evidence for control `custom-cl0015`: who asked, what they read, and why they were refused.
+- Asking in words shows the model only the types the asker may read. Followed questions, the change feed and
+  watchers apply the same rules when they are set up or opened.
+- Every decision is evidence: whether the asker is granted what they read under control `custom-cl0015`, and whether
+  a join rule links the domains read under `custom-cl0032`. The same check applies to a case's evidence, a refresh, an
+  ingested record and a pushed change.
 
-A monitor reads for whoever set it up. It is checked when it is set up, and again at every run against the roles its owner
+A watcher reads for whoever set it up. It is checked when it is set up, and again at every run against the roles its owner
 had then, so it stops, with a recorded refusal and no run, when the domains change and the owner is no longer granted what it
-reads. A change in the owner's roles after set-up is not seen until the monitor is set up again.
+reads. A change in the owner's roles after set-up is not seen until the watcher is set up again.
 
 ## Not built yet
 

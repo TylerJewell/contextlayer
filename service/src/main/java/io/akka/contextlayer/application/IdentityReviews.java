@@ -6,6 +6,7 @@ import io.akka.contextlayer.domain.IdentityCluster;
 import io.akka.contextlayer.domain.ScopedId;
 import io.akka.contextlayer.governance.ControlCatalog;
 import io.akka.contextlayer.governance.Controls;
+import io.akka.contextlayer.governance.HumanEvent;
 import io.akka.contextlayer.governance.HumanEvents;
 import java.util.List;
 import java.util.Map;
@@ -45,15 +46,20 @@ public final class IdentityReviews {
     var id = eventId(cluster);
     // No key in the summary or the detail: it is the matched text, often an email address.
     var raised = HumanEvents.raised(ControlCatalog.current(), Controls.IDENTITY_REVIEW, id, cluster.orgId(), KIND,
-        "Are " + cluster.members().size() + " records matching on " + cluster.rule() + " one entity?", "",
+        "Are " + cluster.members().size() + " records matching on " + cluster.rule() + " the same thing?", "",
         Map.of("rule", cluster.rule(), "_clusterId", ScopedId.of(cluster.orgId(), cluster.rule(), ScopedId.safe(cluster.key())),
-            "fingerprint", cluster.fingerprint(), "memberCount", String.valueOf(cluster.members().size())),
+            "fingerprint", cluster.fingerprint(), "memberCount", String.valueOf(cluster.members().size()),
+            HumanEvent.CONTRIBUTORS, String.join(",", cluster.contributors())),
         "identity-rule", cluster.rule(), "the match is not certain enough to join the records without a person",
-        "Are the records that match on " + cluster.rule() + " one entity?",
-        List.of("The records share details that identify one entity.", "No record belongs to someone else."),
+        "Are the records that match on " + cluster.rule() + " the same thing?",
+        List.of("The records share details that identify one person or thing.", "No record is of something else."),
         "system:identity", now);
     var answer = client.forEventSourcedEntity(id).method(HumanEventEntity::raise).invoke(raised);
-    if (answer.event().raisedAt() == now) HumanEventTimedAction.schedule(timers, client, id, raised.dueAt());
+    if (answer.event().raisedAt() == now) {
+      HumanEventTimedAction.schedule(timers, client, id, raised.dueAt());
+      new Verdicts(client).sanitizer(cluster.orgId(), Controls.IDENTITY_KEY_HASHING, id, 1, "link review " + id,
+          "system:identity");
+    }
     return id;
   }
 

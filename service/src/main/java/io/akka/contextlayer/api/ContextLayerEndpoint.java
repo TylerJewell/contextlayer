@@ -25,6 +25,8 @@ import io.akka.contextlayer.application.QuestionDrafter;
 import io.akka.contextlayer.application.QuestionService;
 import io.akka.contextlayer.application.RefreshStatusEntity;
 import io.akka.contextlayer.application.SourceCaller;
+import io.akka.contextlayer.application.UnknownOutcomes;
+import io.akka.contextlayer.application.Verdicts;
 import akka.optimize.auth.Authz;
 import io.akka.contextlayer.auth.Permission;
 import io.akka.contextlayer.auth.ProjectResolver;
@@ -63,7 +65,7 @@ public class ContextLayerEndpoint extends PrincipalEndpoint {
 
   public ContextLayerEndpoint(
       ComponentClient componentClient, EntityStore entityStore, SourceCaller sourceCaller, TimerScheduler timerScheduler, Authz authz, ProjectResolver projects) {
-    super(authz, projects);
+    super(authz, projects, componentClient);
     this.timerScheduler = timerScheduler;
     this.componentClient = componentClient;
     this.entityStore = entityStore;
@@ -164,9 +166,19 @@ public class ContextLayerEndpoint extends PrincipalEndpoint {
   public ReleaseResponse addRelease(String assistantId, AddReleaseRequest body) {
     var principal = authorize(Permission.OPERATE).subject();
     required(body);
-    var releaseId = call(() -> componentClient.forEventSourcedEntity(ScopedId.of(project(), assistantId))
-        .method(AssistantEntity::addRelease)
-        .invoke(new AssistantEntity.AddRelease(body.definition(), principal)));
+    var entityId = call(() -> ScopedId.of(project(), assistantId));
+    String releaseId;
+    try {
+      releaseId = componentClient.forEventSourcedEntity(entityId)
+          .method(AssistantEntity::addRelease)
+          .invoke(new AssistantEntity.AddRelease(body.definition(), principal));
+    } catch (IllegalArgumentException refused) { // the entity refuses a release that is not a valid playbook
+      verdicts().guardrail(project(), Controls.PLAYBOOK_DEFINITION_BOUNDS, Verdicts.once(assistantId), false,
+          refused.getMessage(), "release of " + assistantId, principal);
+      throw HttpException.badRequest(refused.getMessage());
+    }
+    verdicts().guardrail(project(), Controls.PLAYBOOK_DEFINITION_BOUNDS, "release~" + assistantId + "~" + releaseId, true,
+        "a valid playbook", "release " + releaseId + " of " + assistantId, principal);
     return new ReleaseResponse(releaseId);
   }
 
@@ -192,7 +204,8 @@ public class ContextLayerEndpoint extends PrincipalEndpoint {
         .method(AssistantEntity::get)
         .invoke());
     assistant.validateApprove(releaseId, caller.subject()).ifPresent(error -> {
-      throw HttpException.badRequest(error);
+      throw GateDecisions.refuse(componentClient, caller, project(), Controls.RELEASE_APPROVAL,
+          assistantId + " " + releaseId, error);
     });
     var eventId = GateDecisions.decide(componentClient, caller, project(), Controls.RELEASE_APPROVAL,
         eventId("release", project(), assistantId, releaseId + "-" + System.currentTimeMillis()), "change",
@@ -216,9 +229,10 @@ public class ContextLayerEndpoint extends PrincipalEndpoint {
         .method(AssistantEntity::get)
         .invoke());
     assistant.validateStage(body.stage(), caller.subject()).ifPresent(error -> {
-      throw HttpException.badRequest(error);
+      throw GateDecisions.refuse(componentClient, caller, project(), Controls.STAGE_CHANGE_APPROVAL,
+          assistantId + " " + body.stage(), error);
     });
-    var eventId = GateDecisions.decide(componentClient, caller, project(), Controls.RELEASE_APPROVAL,
+    var eventId = GateDecisions.decide(componentClient, caller, project(), Controls.STAGE_CHANGE_APPROVAL,
         eventId("stage", project(), assistantId, body.stage() + "-" + System.currentTimeMillis()), "change",
         "Move assistant " + assistantId + " to " + body.stage(), assistantId,
         Map.of("assistantId", assistantId, "stage", body.stage().name()),
@@ -252,6 +266,10 @@ public class ContextLayerEndpoint extends PrincipalEndpoint {
         .method(ActionWorkflow::start)
         .invoke(new ActionWorkflow.Start(project(), assistantId, actionKey, body.actionType(),
             body.payload() == null ? "" : body.payload(), "", caller.subject())));
+    if (!"STARTED".equals(status)) {
+      verdicts().guardrail(project(), Controls.EXACTLY_ONCE_ACTIONS, Verdicts.once(actionKey), true,
+          "repeat request: the action was not sent again", body.actionType() + " " + actionKey, caller.subject());
+    }
     return new ActionAccepted(actionKey, status);
   }
 
@@ -320,21 +338,29 @@ public class ContextLayerEndpoint extends PrincipalEndpoint {
     if (event.policy().minimumReviewSeconds() > 0 && !(event.holder().equals(caller.subject()) && event.pending())) {
       var claimed = componentClient.forEventSourcedEntity(eventId).method(HumanEventEntity::claim)
           .invoke(new HumanEventEntity.Act(reviewer, System.currentTimeMillis()));
-      if (claimed.refusal() != null) throw GateDecisions.toException(claimed.refusal());
+      if (claimed.refusal() != null) {
+        verdicts().humanRefusal(claimed.event(), caller.subject(), "claim", claimed.refusal(), false);
+        throw GateDecisions.toException(claimed.refusal());
+      }
     }
     var decided = componentClient.forEventSourcedEntity(eventId).method(HumanEventEntity::decide)
         .invoke(new HumanEventEntity.Decide(reviewer, action, rationale, List.of(), 0, System.currentTimeMillis()));
-    if (decided.refusal() != null) throw GateDecisions.toException(decided.refusal());
+    if (decided.refusal() != null) {
+      verdicts().humanRefusal(decided.event(), caller.subject(), "decide", decided.refusal(), false);
+      throw GateDecisions.toException(decided.refusal());
+    }
   }
 
-  /** A person records what really happened after an action whose outcome was unknown. */
+  /**
+   * A person records what really happened after an action whose outcome was unknown, by deciding its human event
+   * (control custom-cl0044): approve if it took effect, deny if not. The ledger changes when the decision is applied.
+   */
   @Post("/assistants/{assistantId}/actions/{actionKey}/resolve")
   public ActionResponse resolveUnknown(String assistantId, String actionKey, ResolveRequest body) {
-    var principal = authorize(Permission.REVIEW).subject();
+    var caller = authorize(Permission.REVIEW);
     required(body);
-    call(() -> componentClient.forEventSourcedEntity(ScopedId.of(project(), assistantId, actionKey))
-        .method(ActionLedgerEntity::resolveUnknown)
-        .invoke(new ActionLedgerEntity.ResolveUnknown(principal, body.succeeded(), body.note())));
+    var eventId = call(() -> UnknownOutcomes.eventId(project(), assistantId, actionKey));
+    decideEvent(eventId, caller, body.succeeded() ? "APPROVE" : "DENY", body.note(), "the action's outcome is not unknown");
     return getAction(assistantId, actionKey);
   }
 
@@ -396,9 +422,19 @@ public class ContextLayerEndpoint extends PrincipalEndpoint {
   @Post("/connectors/{packName}/versions")
   public PackVersionResponse importPack(String packName, PackRequest body) {
     var principal = authorize(Permission.OPERATE).subject();
-    var hash = call(() -> componentClient.forEventSourcedEntity(ScopedId.of(project(), packName))
-        .method(ConnectorPackEntity::importVersion)
-        .invoke(new ConnectorPackEntity.Import(project(), packName, toDomain(body), principal)));
+    var entityId = call(() -> ScopedId.of(project(), packName));
+    String hash;
+    try {
+      hash = componentClient.forEventSourcedEntity(entityId)
+          .method(ConnectorPackEntity::importVersion)
+          .invoke(new ConnectorPackEntity.Import(project(), packName, toDomain(body), principal));
+    } catch (IllegalArgumentException refused) { // the entity refuses a pack that does not validate
+      verdicts().guardrail(project(), Controls.VALID_CONNECTOR_PACKS, Verdicts.once(packName), false,
+          refused.getMessage(), "connector " + packName, principal);
+      throw HttpException.badRequest(refused.getMessage());
+    }
+    verdicts().guardrail(project(), Controls.VALID_CONNECTOR_PACKS, "pack~" + packName + "~" + hash, true,
+        "a valid connector pack", "version " + hash + " of connector " + packName, principal);
     return new PackVersionResponse(hash);
   }
 
@@ -410,7 +446,8 @@ public class ContextLayerEndpoint extends PrincipalEndpoint {
         .method(ConnectorPackEntity::get)
         .invoke());
     pack.validateActivate(hash, body.mode(), caller.subject()).ifPresent(error -> {
-      throw HttpException.badRequest(error);
+      throw GateDecisions.refuse(componentClient, caller, project(), Controls.PACK_ACTIVATION, packName + " " + hash,
+          error);
     });
     var importer = pack.find(hash).map(v -> v.importedBy()).orElse("");
     var eventId = GateDecisions.decide(componentClient, caller, project(), Controls.PACK_ACTIVATION,
@@ -429,15 +466,23 @@ public class ContextLayerEndpoint extends PrincipalEndpoint {
     return getPack(packName);
   }
 
+  /** Takes a connector out of service, as an approver's decision with a reason (control custom-cl0041). */
   @Post("/connectors/{packName}/deactivate")
-  public PackResponse deactivatePack(String packName) {
-    var principal = authorize(Permission.APPROVE).subject();
+  public PackResponse deactivatePack(String packName, DecisionRequest body) {
+    var caller = authorize(Permission.APPROVE);
     var before = call(() -> componentClient.forEventSourcedEntity(ScopedId.of(project(), packName))
         .method(ConnectorPackEntity::get).invoke());
+    if (!before.exists()) throw HttpException.notFound();
+    var eventId = GateDecisions.decide(componentClient, caller, project(), Controls.PACK_DEACTIVATION,
+        eventId("pack-off", project(), packName, String.valueOf(System.currentTimeMillis())), "change",
+        "Take connector " + packName + " out of service", "", Map.of("pack", packName),
+        "Should connector " + packName + " stop being used?", "system:connectors", "APPROVE",
+        body == null ? null : body.rationale());
     MaintainedRefreshAction.stop(timerScheduler, project(), before);
-    call(() -> componentClient.forEventSourcedEntity(ScopedId.of(project(), packName))
-        .method(ConnectorPackEntity::deactivate)
-        .invoke(principal));
+    GateDecisions.applying(componentClient, eventId, "connector deactivated", () -> call(() ->
+        componentClient.forEventSourcedEntity(ScopedId.of(project(), packName))
+            .method(ConnectorPackEntity::deactivate)
+            .invoke(caller.subject())));
     return getPack(packName);
   }
 
@@ -477,19 +522,20 @@ public class ContextLayerEndpoint extends PrincipalEndpoint {
 
   @Post("/records")
   public IngestResponse ingest(IngestRequest body) {
-    authorize(Permission.OPERATE);
+    var caller = authorize(Permission.OPERATE);
     required(body);
     if (blank(body.entityType()) || blank(body.source()) || blank(body.recordId())) {
       throw HttpException.badRequest("entityType, source and recordId are required");
     }
     if (body.attributes() == null) throw HttpException.badRequest("attributes are required");
+    DomainGate.require(componentClient, project(), caller, List.of(body.entityType()));
     var matches = new ArrayList<IdentityMatch>();
     for (var candidate : IdentityRules.candidates(body.attributes())) {
       var cluster = call(() -> componentClient
           .forEventSourcedEntity(clusterId(project(), candidate.rule(), candidate.key()))
           .method(IdentityEntity::addMember)
           .invoke(new IdentityEntity.AddMember(project(), candidate.rule(), candidate.key(), candidate.confidence(),
-              body.source(), body.entityType(), body.recordId())));
+              body.source(), body.entityType(), body.recordId(), caller.subject())));
       matches.add(new IdentityMatch(candidate.rule(), cluster.status().name(), cluster.members().size()));
     }
     return new IngestResponse(matches);
@@ -533,7 +579,10 @@ public class ContextLayerEndpoint extends PrincipalEndpoint {
     var eventId = IdentityReviews.raise(componentClient, timerScheduler, cluster);
     var answer = componentClient.forEventSourcedEntity(eventId).method(HumanEventEntity::claim)
         .invoke(new HumanEventEntity.Act(Reviewer.of(caller, false), System.currentTimeMillis()));
-    if (answer.refusal() != null) throw GateDecisions.toException(answer.refusal());
+    if (answer.refusal() != null) {
+      verdicts().humanRefusal(answer.event(), caller.subject(), "claim", answer.refusal(), false);
+      throw GateDecisions.toException(answer.refusal());
+    }
     return new OpenedReview(eventId, answer.event().policy().minimumReviewSeconds(), answer.event().claimedAt());
   }
 
@@ -583,12 +632,23 @@ public class ContextLayerEndpoint extends PrincipalEndpoint {
     }
   }
 
+  /**
+   * @param draftId set when the question was drafted by the model (it comes back in the draft): running it then
+   *     records that a person ran the draft (control custom-cl0043)
+   */
   public record QuestionRequest(
       String entityType,
       List<ConditionRequest> where,
       List<LinkRequest> links,
       List<String> returnFields,
-      Integer limit) {}
+      Integer limit,
+      String draftId) {
+
+    public QuestionRequest(
+        String entityType, List<ConditionRequest> where, List<LinkRequest> links, List<String> returnFields, Integer limit) {
+      this(entityType, where, links, returnFields, limit, null);
+    }
+  }
 
   public record SourceReportView(
       String pack, String entityType, String freshness, String lastOutcome, long dataAsOf, List<String> warnings) {}
@@ -606,6 +666,7 @@ public class ContextLayerEndpoint extends PrincipalEndpoint {
     if (question.validate().isEmpty()) {
       DomainGate.require(componentClient, project(), caller, DomainAccess.typesOf(question));
     }
+    if (body.draftId() != null && !body.draftId().isBlank()) recordPersonRuns(caller, body.draftId());
     var service = QuestionService.standard(componentClient, entityStore, sourceCaller, QUESTION_TIME_BUDGET_MILLIS);
     var answer = call(() -> service.ask(project(), question));
     var sources = answer.sources().stream()
@@ -613,6 +674,24 @@ public class ContextLayerEndpoint extends PrincipalEndpoint {
             s.dataAsOf(), s.warnings()))
         .toList();
     return new AnswerResponse(answer.rows(), answer.unconfirmedLeftOut(), sources);
+  }
+
+  /**
+   * A person runs a question the model drafted: a decision under {@link Controls#PERSON_RUNS_QUESTION}. The draft must
+   * be one this service made and checked; the person may have changed it before running it.
+   */
+  private void recordPersonRuns(io.akka.contextlayer.auth.Caller caller, String draftId) {
+    var checked = call(() -> componentClient
+        .forEventSourcedEntity(ScopedId.of(project(), "ev", Controls.DRAFT_SCHEMA_CHECK, ScopedId.safe(draftId)))
+        .method(io.akka.contextlayer.application.EvidenceEntity::get).invoke().evidence());
+    if (checked == null || !"PASS".equals(checked.decision())) {
+      throw HttpException.badRequest("draftId names no draft this service made and checked");
+    }
+    long now = System.currentTimeMillis();
+    GateDecisions.decide(componentClient, caller, project(), Controls.PERSON_RUNS_QUESTION,
+        eventId("run", project(), ScopedId.safe(draftId), String.valueOf(now)), "change",
+        "Run the question drafted as " + draftId, "", Map.of("draftId", draftId),
+        "Run the drafted question?", "system:drafter", "APPROVE", null);
   }
 
   public record DraftRequest(String text) {}
@@ -636,7 +715,7 @@ public class ContextLayerEndpoint extends PrincipalEndpoint {
       throw HttpException.badRequest("text is at most " + QuestionDrafter.MAX_REQUEST + " characters");
     }
     var drafted = call(() -> new QuestionDrafter(componentClient, entityStore).draft(project(), body.text().trim(), caller));
-    return new DraftResponse(drafted.question() == null ? null : QuestionMapping.toApi(drafted.question()),
+    return new DraftResponse(drafted.question() == null ? null : QuestionMapping.toApi(drafted.question(), drafted.draftId()),
         drafted.explanation(), drafted.clarification(), drafted.problems());
   }
 
@@ -657,7 +736,8 @@ public class ContextLayerEndpoint extends PrincipalEndpoint {
   /** Reads the entity type from its source now, whatever its freshness policy. */
   @Post("/connectors/{packName}/entities/{entityType}/refresh")
   public RefreshResponse refresh(String packName, String entityType) {
-    authorize(Permission.OPERATE);
+    var caller = authorize(Permission.OPERATE);
+    DomainGate.require(componentClient, project(), caller, List.of(entityType));
     var refresher = new EntityRefresher(componentClient, sourceCaller, entityStore, System::currentTimeMillis);
     return toResponse(call(() -> refresher.refresh(project(), packName, entityType, Map.of())));
   }

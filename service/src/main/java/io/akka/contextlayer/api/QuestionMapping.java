@@ -45,13 +45,19 @@ final class QuestionMapping {
 
   /** The API shape of a stored question, for reading a monitor back. */
   static ContextLayerEndpoint.QuestionRequest toApi(StructuredQuestion q) {
+    return toApi(q, null);
+  }
+
+  /** The API shape of a question; a drafted one carries its draft's id. */
+  static ContextLayerEndpoint.QuestionRequest toApi(StructuredQuestion q, String draftId) {
     return new ContextLayerEndpoint.QuestionRequest(
         q.entityType(),
         api(q.where()),
         q.links().stream().map(l -> new ContextLayerEndpoint.LinkRequest(l.entityType(), api(l.where()),
             l.byIdentity() ? null : l.via(), l.byIdentity() ? null : l.direction().name(), l.byIdentity() ? null : l.depth())).toList(),
         q.returnFields(),
-        q.limit());
+        q.limit(),
+        draftId);
   }
 
   private static List<ContextLayerEndpoint.ConditionRequest> api(List<StructuredQuestion.Condition> list) {

@@ -66,7 +66,7 @@ public class MonitorEndpoint extends PrincipalEndpoint {
   private final TimerScheduler timerScheduler;
 
   public MonitorEndpoint(ComponentClient componentClient, TimerScheduler timerScheduler, Authz authz, ProjectResolver projects) {
-    super(authz, projects);
+    super(authz, projects, componentClient);
     this.componentClient = componentClient;
     this.timerScheduler = timerScheduler;
   }
@@ -186,7 +186,7 @@ public class MonitorEndpoint extends PrincipalEndpoint {
   }
 
   private static MonitorDefinition toDomain(MonitorRequest body) {
-    if (body == null) throw HttpException.badRequest("a monitor definition is required");
+    if (body == null) throw HttpException.badRequest("a watcher definition is required");
     return new MonitorDefinition(
         body.name(),
         QuestionMapping.toDomain(body.question()),
